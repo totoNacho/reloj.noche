@@ -1,0 +1,175 @@
+package cl.relojnoche
+
+import android.content.Context
+import android.content.SharedPreferences
+import android.text.format.DateFormat
+import androidx.compose.runtime.Immutable
+import androidx.compose.ui.graphics.Color
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+/** Estilos de reloj, en el mismo orden en que se pasan deslizando. */
+enum class ClockStyle(val label: String) {
+    DIGITAL("Digital"),
+    ANALOG("Analógico"),
+    FALLING("Caída"),
+}
+
+/** Cuándo pasar a modo noche: todo en rojo tenue, como el StandBy de iOS. */
+enum class NightMode(val label: String, val description: String) {
+    AUTO("Automático", "Cuando la habitación está oscura (sensor de luz)"),
+    ALWAYS("Siempre", "El reloj siempre en rojo tenue"),
+    NEVER("Nunca", "Siempre con el color elegido"),
+}
+
+@Immutable
+data class ClockSettings(
+    val style: ClockStyle = ClockStyle.DIGITAL,
+    val colorIndex: Int = 0,
+    val use24h: Boolean = true,
+    val digitalSeconds: Boolean = false,
+    val analogSeconds: Boolean = true,
+    val showDate: Boolean = true,
+    val showInfo: Boolean = true,
+    val nightMode: NightMode = NightMode.AUTO,
+    /** Brillo de la pantalla en modo noche (0..1 del brillo del sistema). */
+    val nightBrightness: Float = 0.02f,
+    /** Mueve el reloj unos pocos dp cada minuto para no marcar pantallas OLED. */
+    val burnInShift: Boolean = true,
+    /** Protector de pantalla: no mostrarse si la carga es por cable. */
+    val onlyWireless: Boolean = false,
+    /** App: cerrar el reloj al sacar el teléfono del cargador. */
+    val closeOnUnplug: Boolean = true,
+    val setupSeen: Boolean = false,
+)
+
+const val NIGHT_BRIGHTNESS_MIN = 0.005f
+const val NIGHT_BRIGHTNESS_MAX = 0.30f
+
+/**
+ * Ajustes persistidos en SharedPreferences y expuestos como StateFlow, para
+ * que el reloj (app y protector de pantalla) reaccione al instante.
+ * Todo se usa desde el hilo principal.
+ */
+object SettingsStore {
+    private const val PREFS = "reloj_noche"
+    private const val K_STYLE = "style"
+    private const val K_COLOR = "color"
+    private const val K_24H = "use24h"
+    private const val K_DIGITAL_SECONDS = "digital_seconds"
+    private const val K_ANALOG_SECONDS = "analog_seconds"
+    private const val K_DATE = "show_date"
+    private const val K_INFO = "show_info"
+    private const val K_NIGHT = "night_mode"
+    private const val K_NIGHT_BRIGHTNESS = "night_brightness"
+    private const val K_BURN_IN = "burn_in_shift"
+    private const val K_ONLY_WIRELESS = "only_wireless"
+    private const val K_CLOSE_UNPLUG = "close_on_unplug"
+    private const val K_SETUP_SEEN = "setup_seen"
+
+    private var prefs: SharedPreferences? = null
+    private val _state = MutableStateFlow(ClockSettings())
+    val state: StateFlow<ClockSettings> = _state.asStateFlow()
+    val current: ClockSettings get() = _state.value
+
+    @Synchronized
+    fun init(context: Context) {
+        if (prefs != null) return
+        val p = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs = p
+        val d = ClockSettings()
+        _state.value = ClockSettings(
+            style = enumOr(p.getString(K_STYLE, null), d.style),
+            colorIndex = p.getInt(K_COLOR, d.colorIndex).coerceIn(0, Palette.lastIndex),
+            // Por defecto, el mismo formato que usa el teléfono.
+            use24h = p.getBoolean(K_24H, DateFormat.is24HourFormat(context)),
+            digitalSeconds = p.getBoolean(K_DIGITAL_SECONDS, d.digitalSeconds),
+            analogSeconds = p.getBoolean(K_ANALOG_SECONDS, d.analogSeconds),
+            showDate = p.getBoolean(K_DATE, d.showDate),
+            showInfo = p.getBoolean(K_INFO, d.showInfo),
+            nightMode = enumOr(p.getString(K_NIGHT, null), d.nightMode),
+            nightBrightness = p.getFloat(K_NIGHT_BRIGHTNESS, d.nightBrightness)
+                .coerceIn(NIGHT_BRIGHTNESS_MIN, NIGHT_BRIGHTNESS_MAX),
+            burnInShift = p.getBoolean(K_BURN_IN, d.burnInShift),
+            onlyWireless = p.getBoolean(K_ONLY_WIRELESS, d.onlyWireless),
+            closeOnUnplug = p.getBoolean(K_CLOSE_UNPLUG, d.closeOnUnplug),
+            setupSeen = p.getBoolean(K_SETUP_SEEN, d.setupSeen),
+        )
+    }
+
+    fun update(transform: (ClockSettings) -> ClockSettings) {
+        val old = _state.value
+        val s = transform(old)
+        if (s == old) return
+        _state.value = s
+        prefs?.edit()
+            ?.putString(K_STYLE, s.style.name)
+            ?.putInt(K_COLOR, s.colorIndex)
+            ?.putBoolean(K_24H, s.use24h)
+            ?.putBoolean(K_DIGITAL_SECONDS, s.digitalSeconds)
+            ?.putBoolean(K_ANALOG_SECONDS, s.analogSeconds)
+            ?.putBoolean(K_DATE, s.showDate)
+            ?.putBoolean(K_INFO, s.showInfo)
+            ?.putString(K_NIGHT, s.nightMode.name)
+            ?.putFloat(K_NIGHT_BRIGHTNESS, s.nightBrightness)
+            ?.putBoolean(K_BURN_IN, s.burnInShift)
+            ?.putBoolean(K_ONLY_WIRELESS, s.onlyWireless)
+            ?.putBoolean(K_CLOSE_UNPLUG, s.closeOnUnplug)
+            ?.putBoolean(K_SETUP_SEEN, s.setupSeen)
+            ?.apply()
+    }
+
+    private inline fun <reified T : Enum<T>> enumOr(name: String?, default: T): T =
+        name?.let { n -> enumValues<T>().firstOrNull { it.name == n } } ?: default
+}
+
+// --- Colores ----------------------------------------------------------------
+
+data class NamedColor(val name: String, val color: Color)
+
+/** Colores del sistema de iOS en modo oscuro. */
+val Palette = listOf(
+    NamedColor("Blanco", Color(0xFFFFFFFF)),
+    NamedColor("Rojo", Color(0xFFFF453A)),
+    NamedColor("Naranja", Color(0xFFFF9F0A)),
+    NamedColor("Amarillo", Color(0xFFFFD60A)),
+    NamedColor("Verde", Color(0xFF30D158)),
+    NamedColor("Menta", Color(0xFF66D4CF)),
+    NamedColor("Cian", Color(0xFF64D2FF)),
+    NamedColor("Azul", Color(0xFF0A84FF)),
+    NamedColor("Índigo", Color(0xFF5E5CE6)),
+    NamedColor("Morado", Color(0xFFBF5AF2)),
+    NamedColor("Rosa", Color(0xFFFF375F)),
+)
+
+/** Colores ya resueltos para pintar una esfera. */
+@Immutable
+data class FaceColors(
+    val primary: Color,    // dígitos y agujas
+    val secondary: Color,  // fecha, batería, dos puntos, marcas de hora
+    val faint: Color,      // marcas de minutos
+    val seconds: Color,    // segundero
+)
+
+private val NightRed = Color(0xFFFF2D20)
+
+fun faceColors(colorIndex: Int, night: Boolean): FaceColors {
+    if (night) {
+        return FaceColors(
+            primary = NightRed.copy(alpha = 0.9f),
+            secondary = NightRed.copy(alpha = 0.55f),
+            faint = NightRed.copy(alpha = 0.28f),
+            seconds = NightRed,
+        )
+    }
+    val c = Palette.getOrElse(colorIndex) { Palette[0] }.color
+    // Segundero naranja como en iOS; si el color elegido ya es cálido, rojo.
+    val secondHand = if (colorIndex == 2 || colorIndex == 3) Color(0xFFFF453A) else Color(0xFFFF9F0A)
+    return FaceColors(
+        primary = c,
+        secondary = c.copy(alpha = 0.62f),
+        faint = c.copy(alpha = 0.25f),
+        seconds = secondHand,
+    )
+}

@@ -1,0 +1,31 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Bisel del reloj -->
+    <path
+        android:pathData="M54,30 a24,24 0 1,1 0,48 a24,24 0 1,1 0,-48"
+        android:strokeWidth="3"
+        android:strokeColor="#FFFFFF"
+        android:fillColor="#00000000" />
+    <!-- Horario (10) y minutero (2): las 10:10 clasicas -->
+    <path
+        android:pathData="M54,54 L43.6,48"
+        android:strokeWidth="4.5"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M54,54 L68.7,45.5"
+        android:strokeWidth="3.5"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round" />
+    <!-- Luna creciente -->
+    <path
+        android:fillColor="#FFD60A"
+        android:pathData="M59.518,69.357 A6,6 0 1,1 53.282,61.043 A5.25,5.25 0 0,0 59.518,69.357 Z" />
+    <!-- Centro naranja -->
+    <path
+        android:fillColor="#FF9F0A"
+        android:pathData="M54,51.4 a2.6,2.6 0 1,1 0,5.2 a2.6,2.6 0 1,1 0,-5.2" />
+</vector>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Metadatos del protector de pantalla:
+    - settingsActivity: el engranaje en Ajustes > Protector de pantalla abre
+      nuestros ajustes.
+    - showClockAndComplications=false: el reloj lo dibujamos nosotros; que el
+      sistema no superponga el suyo (tablets/Pixel con "hub").
+-->
+<dream xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="cl.relojnoche/.SettingsActivity"
+    android:showClockAndComplications="false" />

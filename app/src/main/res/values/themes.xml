@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tema base oscuro: la UI se dibuja con Compose. Fondo negro para que
+         no haya destellos blancos al abrir de noche. -->
+    <style name="Theme.RelojNoche" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:colorBackground">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/black</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
+    </style>
+
+    <!-- Reloj a pantalla completa -->
+    <style name="Theme.RelojNoche.Clock">
+        <item name="android:windowFullscreen">true</item>
+    </style>
+</resources>
