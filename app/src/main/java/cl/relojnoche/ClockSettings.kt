@@ -41,8 +41,47 @@ data class ClockSettings(
     val onlyWireless: Boolean = false,
     /** App: cerrar el reloj al sacar el teléfono del cargador. */
     val closeOnUnplug: Boolean = true,
+    /** Protector de pantalla: mostrarse solo dentro de una franja horaria y días. */
+    val scheduleEnabled: Boolean = false,
+    /** Inicio de la franja, en minutos desde medianoche (0..1439). */
+    val scheduleStart: Int = 22 * 60,
+    /** Fin de la franja, en minutos desde medianoche. Si es <= inicio, cruza medianoche. */
+    val scheduleEnd: Int = 7 * 60,
+    /** Días activos como bitmask: bit 0 = lunes ... bit 6 = domingo. */
+    val scheduleDays: Int = ALL_DAYS,
     val setupSeen: Boolean = false,
 )
+
+const val ALL_DAYS = 0b111_1111
+
+/** true si el instante dado cae dentro de la franja y en un día activo. */
+fun ClockSettings.isWithinSchedule(millis: Long): Boolean {
+    if (!scheduleEnabled) return true
+    val t = zonedTime(millis)
+    val minutes = t.hour * 60 + t.minute
+    // DayOfWeek: 1 = lunes ... 7 = domingo  ->  bit 0..6.
+    val todayBit = t.dayOfWeek.value - 1
+    val crossesMidnight = scheduleEnd <= scheduleStart
+    val inWindow: Boolean
+    // El día de referencia es el día en que EMPIEZA la franja. Así una franja
+    // nocturna (p. ej. vie 22:00 -> sáb 07:00) cuenta como viernes.
+    val startDayBit: Int
+    if (!crossesMidnight) {
+        inWindow = minutes in scheduleStart until scheduleEnd
+        startDayBit = todayBit
+    } else {
+        val afterStart = minutes >= scheduleStart   // misma noche
+        val beforeEnd = minutes < scheduleEnd       // madrugada del día siguiente
+        inWindow = afterStart || beforeEnd
+        // Si estamos en la madrugada, la franja empezó "ayer".
+        startDayBit = if (beforeEnd && !afterStart) (todayBit + 6) % 7 else todayBit
+    }
+    if (!inWindow) return false
+    return (scheduleDays shr startDayBit) and 1 == 1
+}
+
+/** Nombres cortos de los días, en orden lunes..domingo. */
+val DayLabels = listOf("L", "M", "M", "J", "V", "S", "D")
 
 const val NIGHT_BRIGHTNESS_MIN = 0.005f
 const val NIGHT_BRIGHTNESS_MAX = 0.30f
@@ -66,6 +105,10 @@ object SettingsStore {
     private const val K_BURN_IN = "burn_in_shift"
     private const val K_ONLY_WIRELESS = "only_wireless"
     private const val K_CLOSE_UNPLUG = "close_on_unplug"
+    private const val K_SCHED_ENABLED = "schedule_enabled"
+    private const val K_SCHED_START = "schedule_start"
+    private const val K_SCHED_END = "schedule_end"
+    private const val K_SCHED_DAYS = "schedule_days"
     private const val K_SETUP_SEEN = "setup_seen"
 
     private var prefs: SharedPreferences? = null
@@ -94,6 +137,10 @@ object SettingsStore {
             burnInShift = p.getBoolean(K_BURN_IN, d.burnInShift),
             onlyWireless = p.getBoolean(K_ONLY_WIRELESS, d.onlyWireless),
             closeOnUnplug = p.getBoolean(K_CLOSE_UNPLUG, d.closeOnUnplug),
+            scheduleEnabled = p.getBoolean(K_SCHED_ENABLED, d.scheduleEnabled),
+            scheduleStart = p.getInt(K_SCHED_START, d.scheduleStart).coerceIn(0, 1439),
+            scheduleEnd = p.getInt(K_SCHED_END, d.scheduleEnd).coerceIn(0, 1439),
+            scheduleDays = (p.getInt(K_SCHED_DAYS, d.scheduleDays) and ALL_DAYS),
             setupSeen = p.getBoolean(K_SETUP_SEEN, d.setupSeen),
         )
     }
@@ -116,6 +163,10 @@ object SettingsStore {
             ?.putBoolean(K_BURN_IN, s.burnInShift)
             ?.putBoolean(K_ONLY_WIRELESS, s.onlyWireless)
             ?.putBoolean(K_CLOSE_UNPLUG, s.closeOnUnplug)
+            ?.putBoolean(K_SCHED_ENABLED, s.scheduleEnabled)
+            ?.putInt(K_SCHED_START, s.scheduleStart)
+            ?.putInt(K_SCHED_END, s.scheduleEnd)
+            ?.putInt(K_SCHED_DAYS, s.scheduleDays)
             ?.putBoolean(K_SETUP_SEEN, s.setupSeen)
             ?.apply()
     }

@@ -34,12 +34,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -49,9 +51,12 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -337,6 +342,36 @@ private fun SettingsScreen(
                 }
             }
 
+            Section("Horario") {
+                SwitchRow(
+                    "Solo en un horario",
+                    "El reloj aparece al cargar solo dentro de la franja y los días elegidos",
+                    s.scheduleEnabled,
+                ) { v -> set { it.copy(scheduleEnabled = v) } }
+                if (s.scheduleEnabled) {
+                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        TimeField(
+                            "Desde", s.scheduleStart, s.use24h, Modifier.weight(1f),
+                        ) { v -> set { it.copy(scheduleStart = v) } }
+                        TimeField(
+                            "Hasta", s.scheduleEnd, s.use24h, Modifier.weight(1f),
+                        ) { v -> set { it.copy(scheduleEnd = v) } }
+                    }
+                    if (s.scheduleEnd <= s.scheduleStart) {
+                        Hint("La franja cruza la medianoche (p. ej. 22:00 de un día a 07:00 del siguiente).")
+                    }
+                    DaysPicker(s.scheduleDays) { v -> set { it.copy(scheduleDays = v) } }
+                    Hint(
+                        "El horario se aplica al protector de pantalla cuando el teléfono está " +
+                            "cargando. No enciende la pantalla por sí solo a esa hora.",
+                    )
+                }
+            }
+
             Section("Al cargar el teléfono") {
                 DreamStatusLine(dreamStatus)
                 Text(
@@ -378,6 +413,102 @@ private fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(vertical = 12.dp).align(Alignment.CenterHorizontally),
             )
+        }
+    }
+}
+
+/** Muestra una hora (p. ej. "22:00") que al tocarla abre un selector. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimeField(
+    label: String,
+    minutesOfDay: Int,
+    use24h: Boolean,
+    modifier: Modifier = Modifier,
+    onChange: (Int) -> Unit,
+) {
+    var showPicker by remember { mutableStateOf(false) }
+    val hour = minutesOfDay / 60
+    val minute = minutesOfDay % 60
+    OutlinedButton(
+        onClick = { showPicker = true },
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                formatClock(hour, minute, use24h),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+    }
+    if (showPicker) {
+        val state = rememberTimePickerState(initialHour = hour, initialMinute = minute, is24Hour = use24h)
+        AlertDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    onChange(state.hour * 60 + state.minute)
+                    showPicker = false
+                }) { Text("Aceptar") }
+            },
+            dismissButton = { TextButton(onClick = { showPicker = false }) { Text("Cancelar") } },
+            title = { Text(label) },
+            text = {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    TimePicker(state = state)
+                }
+            },
+        )
+    }
+}
+
+/** "22:00" en 24 h, o "10:00 p. m." en 12 h. */
+private fun formatClock(hour: Int, minute: Int, use24h: Boolean): String {
+    if (use24h) return "${two(hour)}:${two(minute)}"
+    val h12 = ((hour + 11) % 12) + 1
+    val suffix = if (hour < 12) "a. m." else "p. m."
+    return "$h12:${two(minute)} $suffix"
+}
+
+/** Siete chips (L M M J V S D) para elegir los días activos. */
+@Composable
+private fun DaysPicker(days: Int, onChange: (Int) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        DayLabels.forEachIndexed { i, label ->
+            val selected = (days shr i) and 1 == 1
+            val bg = if (selected) MaterialTheme.colorScheme.primary
+                     else MaterialTheme.colorScheme.surfaceContainerHigh
+            val fg = if (selected) MaterialTheme.colorScheme.onPrimary
+                     else MaterialTheme.colorScheme.onSurfaceVariant
+            Box(
+                Modifier
+                    .weight(1f)
+                    .aspectRatio(1f)
+                    .clip(CircleShape)
+                    .background(bg)
+                    .toggleable(
+                        value = selected,
+                        role = Role.Checkbox,
+                        onValueChange = { on ->
+                            val next = if (on) days or (1 shl i) else days and (1 shl i).inv()
+                            // No dejar los 7 días apagados: sin días, el horario nunca se cumple.
+                            if (next and ALL_DAYS != 0) onChange(next)
+                        },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(label, color = fg, style = MaterialTheme.typography.titleMedium)
+            }
         }
     }
 }

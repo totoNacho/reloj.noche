@@ -69,11 +69,20 @@ class ClockDreamService : DreamService(), LifecycleOwner, SavedStateRegistryOwne
 
     override fun onDreamingStarted() {
         super.onDreamingStarted()
-        // "Solo con carga inalámbrica": si está enchufado por cable, no mostrarse.
-        // (Si no está cargando, es una vista previa desde Ajustes: sí se muestra.)
-        if (SettingsStore.current.onlyWireless) {
-            val battery = readBattery(this)
-            if (battery != null && battery.isPlugged && !battery.isWireless) {
+        val settings = SettingsStore.current
+        val battery = readBattery(this)
+        // Si no está enchufado, esto es una vista previa desde Ajustes: mostrar
+        // siempre, sin aplicar los filtros de carga ni de horario.
+        val isPreview = battery == null || !battery.isPlugged
+
+        if (!isPreview) {
+            // "Solo con carga inalámbrica": si está por cable, no mostrarse.
+            if (settings.onlyWireless && !battery!!.isWireless) {
+                finish()
+                return
+            }
+            // Franja horaria + días: fuera del horario elegido, no mostrarse.
+            if (!settings.isWithinSchedule(System.currentTimeMillis())) {
                 finish()
                 return
             }
