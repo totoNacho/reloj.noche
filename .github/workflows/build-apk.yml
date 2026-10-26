@@ -1,0 +1,114 @@
+name: Build APK
+
+# Compila el APK en los servidores de GitHub (ya traen el Android SDK).
+# No necesitas Android Studio ni SDK en tu PC.
+#
+# Produce:
+#   - relojnoche-...-debug.apk    : firmado en debug (SIEMPRE)
+#   - relojnoche-...-release.apk  : firmado con TU keystore, SOLO si configuras
+#                                   los secrets (ver abajo). Es el que permite
+#                                   actualizar encima sin desinstalar.
+#
+# Secrets para el release firmado (Settings > Secrets and variables > Actions
+# > New repository secret):
+#   KEYSTORE_BASE64     -> el archivo .jks codificado en base64
+#   KEYSTORE_PASSWORD   -> contrasena del keystore
+#   KEY_ALIAS           -> alias de la clave
+#   KEY_PASSWORD        -> contrasena de la clave
+#
+# Si NO configuras los secrets, igual se genera el APK de debug.
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # necesario para publicar Releases con el APK
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # El runner ubuntu-latest ya trae el Android SDK con ANDROID_HOME, asi
+      # que no hace falta instalarlo.
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      # Reconstruye el keystore desde el secret base64 (si existe).
+      - name: Decode keystore
+        id: keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$GITHUB_WORKSPACE/relojnoche-release.jks"
+            echo "has_keystore=true" >> "$GITHUB_OUTPUT"
+            echo "Keystore reconstruido."
+          else
+            echo "has_keystore=false" >> "$GITHUB_OUTPUT"
+            echo "Sin secret de keystore: se compilara solo debug."
+          fi
+
+      - name: Build debug APK
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Build signed release APK
+        if: steps.keystore.outputs.has_keystore == 'true'
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+          KEYSTORE_FILE: ${{ github.workspace }}/relojnoche-release.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: relojnoche-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Upload release APK
+        if: steps.keystore.outputs.has_keystore == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: relojnoche-release-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      # Publica el APK firmado como un Release de GitHub (pagina fija de
+      # descargas e historial de versiones). Solo si hay keystore y en push a
+      # main (no en ejecuciones manuales de prueba).
+      - name: Publish GitHub Release
+        if: steps.keystore.outputs.has_keystore == 'true' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Reloj de Noche v1.0.${{ github.run_number }}
+          body: |
+            APK firmado de Reloj de Noche.
+
+            Descarga **relojnoche-...-release.apk** mas abajo e instalalo en el
+            telefono (activa "instalar apps de origen desconocido" si te lo pide).
+
+            Build automatico #${{ github.run_number }}.
+          files: app/build/outputs/apk/release/*.apk
+          fail_on_unmatched_files: true

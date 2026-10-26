@@ -16,8 +16,22 @@ inalámbrico de velador).
   - **Caída**: cada dígito que cambia cae desde arriba y rebota.
 - **Modo noche**: con poca luz (sensor) todo se vuelve rojo tenue y baja el
   brillo. También se puede forzar a Siempre / Nunca.
+- **Horario**: una franja horaria (soporta cruzar la medianoche) y los días en
+  los que el reloj aparece al cargar. No enciende la pantalla por sí solo a esa
+  hora: es un filtro del protector de pantalla.
 - Fecha, próxima alarma, batería y estado de carga.
 - Protección contra marcas en pantallas OLED (mueve el reloj cada minuto).
+
+## Compilación automática (GitHub Actions)
+
+Cada push a `main` dispara el workflow `.github/workflows/build-apk.yml`, que
+compila el APK en los servidores de GitHub (sin necesidad de SDK local):
+
+- Siempre genera el APK de **debug** como *artifact* de la ejecución.
+- Si configuras los *secrets* del keystore (`KEYSTORE_BASE64`,
+  `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`), además compila el APK de
+  **release firmado** y publica un *Release* con él en la página de releases
+  del repositorio.
 
 ## Compilar
 
