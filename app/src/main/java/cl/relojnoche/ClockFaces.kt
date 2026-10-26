@@ -110,7 +110,7 @@ fun InfoRow(
  */
 @Composable
 fun DigitalClock(settings: ClockSettings, colors: FaceColors, info: ClockInfo, modifier: Modifier = Modifier) {
-    val now by rememberTimeMillis(smooth = false)
+    val now by rememberTimeMillis(smooth = false, ticking = settings.digitalSeconds)
     val t = zonedTime(now)
     val hh = hourText(t.hour, settings.use24h)
     val mm = two(t.minute)
@@ -181,7 +181,8 @@ private const val FALL_EDGE = 0.16f  // borde que se desvanece arriba y abajo
  */
 @Composable
 fun FallingClock(settings: ClockSettings, colors: FaceColors, info: ClockInfo, modifier: Modifier = Modifier) {
-    val now by rememberTimeMillis(smooth = false)
+    // La caída muestra siempre segundos, así que refresca cada segundo.
+    val now by rememberTimeMillis(smooth = false, ticking = true)
     val t = zonedTime(now)
     val hh = hourText(t.hour, settings.use24h)
     val mm = two(t.minute)

@@ -50,7 +50,7 @@ fun AnalogClock(settings: ClockSettings, colors: FaceColors, info: ClockInfo, mo
             if (settings.showInfo) {
                 InfoRow(info, settings.use24h, minute, small, colors.secondary, Modifier.offset(y = -dial * 0.2f))
             }
-            Hands(settings.analogSeconds, colors, Modifier.fillMaxSize())
+            Hands(settings.analogSeconds, settings.smoothSeconds, colors, Modifier.fillMaxSize())
         }
     }
 }
@@ -106,8 +106,11 @@ private fun DialMarks(colors: FaceColors, modifier: Modifier) {
 
 /** Agujas. Leen la hora en la fase de dibujo: solo se repinta esta capa. */
 @Composable
-private fun Hands(showSeconds: Boolean, colors: FaceColors, modifier: Modifier) {
-    val now by rememberTimeMillis(smooth = showSeconds)
+private fun Hands(showSeconds: Boolean, smoothSeconds: Boolean, colors: FaceColors, modifier: Modifier) {
+    // Solo refrescar rápido si hay segundero Y está en modo suave. Si no, el
+    // reloj se redibuja 1 vez por segundo (o por minuto sin segundero): mucho
+    // menos consumo y calor.
+    val now by rememberTimeMillis(smooth = showSeconds && smoothSeconds, ticking = showSeconds)
     val main = colors.primary
     val sec = colors.seconds
     Spacer(

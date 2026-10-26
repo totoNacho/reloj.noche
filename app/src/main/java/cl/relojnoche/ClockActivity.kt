@@ -105,7 +105,12 @@ class ClockActivity : ComponentActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) goImmersive()
+        if (hasFocus) {
+            goImmersive()
+            // Reaplicar el brillo: al recuperar el foco el sistema puede haber
+            // restaurado el brillo normal de la ventana.
+            applyBrightness(lastBrightness)
+        }
     }
 
     private fun keepScreenOn(on: Boolean) {
@@ -113,7 +118,10 @@ class ClockActivity : ComponentActivity() {
         else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
+    private var lastBrightness: Float? = null
+
     private fun applyBrightness(value: Float?) {
+        lastBrightness = value
         window.attributes = window.attributes.apply {
             screenBrightness = value ?: WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
         }

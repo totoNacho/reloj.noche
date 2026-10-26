@@ -104,7 +104,10 @@ class ClockDreamService : DreamService(), LifecycleOwner, SavedStateRegistryOwne
         super.onDestroy()
     }
 
+    private var lastBrightness: Float? = null
+
     private fun applyBrightness(value: Float?) {
+        lastBrightness = value
         val w = window ?: return
         w.attributes = w.attributes.apply {
             screenBrightness = value ?: WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE

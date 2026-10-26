@@ -33,8 +33,26 @@ data class ClockSettings(
     val showDate: Boolean = true,
     val showInfo: Boolean = true,
     val nightMode: NightMode = NightMode.AUTO,
-    /** Brillo de la pantalla en modo noche (0..1 del brillo del sistema). */
+    /**
+     * Brillo de la pantalla SIEMPRE que el reloj está activo (0..1 del brillo
+     * del sistema). Bajo por defecto: un reloj de velador no necesita pantalla
+     * a tope, y así no calienta ni encandila.
+     */
+    val brightness: Float = 0.10f,
+    /** Brillo (más bajo) cuando además está en modo noche. */
     val nightBrightness: Float = 0.02f,
+    /**
+     * Atenuación extra: una capa negra encima del reloj (0 = nada, 1 = casi
+     * negro). Sirve para oscurecer más allá del brillo mínimo del hardware,
+     * que en algunos teléfonos sigue siendo alto.
+     */
+    val dimLevel: Float = 0.0f,
+    /**
+     * Segundero suave (~30 fps). Apagado por defecto: el barrido continuo
+     * mantiene la pantalla redibujándose y es la causa principal de que el
+     * teléfono se caliente. Apagado, el segundero avanza de a 1 segundo.
+     */
+    val smoothSeconds: Boolean = false,
     /** Mueve el reloj unos pocos dp cada minuto para no marcar pantallas OLED. */
     val burnInShift: Boolean = true,
     /** Protector de pantalla: no mostrarse si la carga es por cable. */
@@ -85,6 +103,16 @@ val DayLabels = listOf("L", "M", "M", "J", "V", "S", "D")
 
 const val NIGHT_BRIGHTNESS_MIN = 0.005f
 const val NIGHT_BRIGHTNESS_MAX = 0.30f
+const val BRIGHTNESS_MIN = 0.01f
+const val BRIGHTNESS_MAX = 1.0f
+const val DIM_MAX = 0.85f
+
+/**
+ * Brillo efectivo (0..1) a aplicar a la ventana según el estado actual.
+ * En modo noche usa el menor entre el brillo normal y el nocturno.
+ */
+fun ClockSettings.effectiveBrightness(night: Boolean): Float =
+    if (night) minOf(brightness, nightBrightness) else brightness
 
 /**
  * Ajustes persistidos en SharedPreferences y expuestos como StateFlow, para
@@ -101,7 +129,10 @@ object SettingsStore {
     private const val K_DATE = "show_date"
     private const val K_INFO = "show_info"
     private const val K_NIGHT = "night_mode"
+    private const val K_BRIGHTNESS = "brightness"
     private const val K_NIGHT_BRIGHTNESS = "night_brightness"
+    private const val K_DIM = "dim_level"
+    private const val K_SMOOTH_SECONDS = "smooth_seconds"
     private const val K_BURN_IN = "burn_in_shift"
     private const val K_ONLY_WIRELESS = "only_wireless"
     private const val K_CLOSE_UNPLUG = "close_on_unplug"
@@ -132,8 +163,12 @@ object SettingsStore {
             showDate = p.getBoolean(K_DATE, d.showDate),
             showInfo = p.getBoolean(K_INFO, d.showInfo),
             nightMode = enumOr(p.getString(K_NIGHT, null), d.nightMode),
+            brightness = p.getFloat(K_BRIGHTNESS, d.brightness)
+                .coerceIn(BRIGHTNESS_MIN, BRIGHTNESS_MAX),
             nightBrightness = p.getFloat(K_NIGHT_BRIGHTNESS, d.nightBrightness)
                 .coerceIn(NIGHT_BRIGHTNESS_MIN, NIGHT_BRIGHTNESS_MAX),
+            dimLevel = p.getFloat(K_DIM, d.dimLevel).coerceIn(0f, DIM_MAX),
+            smoothSeconds = p.getBoolean(K_SMOOTH_SECONDS, d.smoothSeconds),
             burnInShift = p.getBoolean(K_BURN_IN, d.burnInShift),
             onlyWireless = p.getBoolean(K_ONLY_WIRELESS, d.onlyWireless),
             closeOnUnplug = p.getBoolean(K_CLOSE_UNPLUG, d.closeOnUnplug),
@@ -159,7 +194,10 @@ object SettingsStore {
             ?.putBoolean(K_DATE, s.showDate)
             ?.putBoolean(K_INFO, s.showInfo)
             ?.putString(K_NIGHT, s.nightMode.name)
+            ?.putFloat(K_BRIGHTNESS, s.brightness)
             ?.putFloat(K_NIGHT_BRIGHTNESS, s.nightBrightness)
+            ?.putFloat(K_DIM, s.dimLevel)
+            ?.putBoolean(K_SMOOTH_SECONDS, s.smoothSeconds)
             ?.putBoolean(K_BURN_IN, s.burnInShift)
             ?.putBoolean(K_ONLY_WIRELESS, s.onlyWireless)
             ?.putBoolean(K_CLOSE_UNPLUG, s.closeOnUnplug)

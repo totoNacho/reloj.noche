@@ -48,18 +48,24 @@ import kotlin.math.roundToInt
 val LocalTimeSource = staticCompositionLocalOf<() -> Long> { { System.currentTimeMillis() } }
 
 /**
- * Hora actual en milisegundos.
- * smooth=true: ~30 veces por segundo (segundero continuo).
- * smooth=false: justo al cambiar cada segundo.
+ * Hora actual en milisegundos, con la cadencia justa para no gastar batería.
+ * - smooth=true: ~30 veces por segundo (segundero de barrido continuo).
+ * - ticking=true, smooth=false: una vez por segundo (tictac).
+ * - ambos false: una vez por minuto (relojes sin segundero).
  */
 @Composable
-fun rememberTimeMillis(smooth: Boolean): State<Long> {
+fun rememberTimeMillis(smooth: Boolean, ticking: Boolean = true): State<Long> {
     val source = LocalTimeSource.current
-    return produceState(initialValue = source(), smooth, source) {
+    return produceState(initialValue = source(), smooth, ticking, source) {
         while (true) {
             val now = source()
             value = now
-            delay(if (smooth) 33L else (1000L - now % 1000L).coerceAtLeast(5L))
+            val wait = when {
+                smooth -> 33L
+                ticking -> (1000L - now % 1000L).coerceAtLeast(5L)
+                else -> (60_000L - now % 60_000L).coerceAtLeast(5L)
+            }
+            delay(wait)
         }
     }
 }

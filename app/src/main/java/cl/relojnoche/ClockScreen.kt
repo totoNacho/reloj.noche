@@ -81,7 +81,9 @@ fun ClockScreen(
         NightMode.NEVER -> false
         NightMode.AUTO -> roomDark ?: isNightHour(minute)
     }
-    val brightness = if (night) settings.nightBrightness else null
+    // Brillo bajo SIEMPRE que el reloj esté activo (no solo en modo noche);
+    // en noche baja aún más. Esto evita el calentamiento por pantalla a tope.
+    val brightness = settings.effectiveBrightness(night)
     val brightnessCallback by rememberUpdatedState(onBrightness)
     LaunchedEffect(brightness) { brightnessCallback(brightness) }
 
@@ -136,6 +138,16 @@ fun ClockScreen(
             ) {
                 ClockFace(styles[page], settings, colors, info, Modifier.fillMaxSize().then(burnIn))
             }
+        }
+
+        // Atenuación extra: capa negra encima del reloj para oscurecer más allá
+        // del brillo mínimo del hardware. No tapa los controles (van después).
+        if (settings.dimLevel > 0f) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = settings.dimLevel)),
+            )
         }
 
         AnimatedVisibility(

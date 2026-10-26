@@ -302,6 +302,11 @@ private fun SettingsScreen(
                 SwitchRow("Segundero en el analógico", null, s.analogSeconds) { v ->
                     set { it.copy(analogSeconds = v) }
                 }
+                SwitchRow(
+                    "Segundero suave",
+                    "Movimiento continuo. Consume más batería y calienta; déjalo apagado para un tictac normal",
+                    s.smoothSeconds,
+                ) { v -> set { it.copy(smoothSeconds = v) } }
                 SwitchRow("Mostrar la fecha", null, s.showDate) { v -> set { it.copy(showDate = v) } }
                 SwitchRow("Mostrar batería y próxima alarma", null, s.showInfo) { v ->
                     set { it.copy(showInfo = v) }
@@ -313,6 +318,36 @@ private fun SettingsScreen(
                 ) { v -> set { it.copy(burnInShift = v) } }
             }
 
+            Section("Brillo") {
+                BrightnessSlider(
+                    "Brillo de la pantalla",
+                    s.brightness, BRIGHTNESS_MIN..BRIGHTNESS_MAX,
+                    onPreview = onPreviewBrightness,
+                ) { v -> set { it.copy(brightness = v) } }
+                Hint("Un reloj de velador no necesita la pantalla a tope. Bajarlo evita que el teléfono se caliente.")
+                HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                BrightnessSlider(
+                    "Brillo en modo noche",
+                    s.nightBrightness, NIGHT_BRIGHTNESS_MIN..NIGHT_BRIGHTNESS_MAX,
+                    onPreview = onPreviewBrightness,
+                ) { v -> set { it.copy(nightBrightness = v) } }
+                HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                    val percent = (s.dimLevel / DIM_MAX * 100).roundToInt()
+                    Text("Oscurecer más: $percent %", style = MaterialTheme.typography.bodyLarge)
+                    Slider(
+                        value = s.dimLevel,
+                        onValueChange = { v -> set { it.copy(dimLevel = v) } },
+                        valueRange = 0f..DIM_MAX,
+                    )
+                    Text(
+                        "Capa oscura encima del reloj, por si el brillo mínimo del teléfono sigue siendo alto.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
             Section("Modo noche") {
                 Column(Modifier.selectableGroup()) {
                     NightMode.entries.forEach { mode ->
@@ -320,25 +355,6 @@ private fun SettingsScreen(
                             set { it.copy(nightMode = mode) }
                         }
                     }
-                }
-                HorizontalDivider(Modifier.padding(horizontal = 16.dp))
-                Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                    val percent = max(1, (s.nightBrightness * 100).roundToInt())
-                    Text("Brillo de noche: $percent %", style = MaterialTheme.typography.bodyLarge)
-                    Slider(
-                        value = s.nightBrightness,
-                        onValueChange = { v ->
-                            set { it.copy(nightBrightness = v) }
-                            onPreviewBrightness(v)
-                        },
-                        onValueChangeFinished = { onPreviewBrightness(null) },
-                        valueRange = NIGHT_BRIGHTNESS_MIN..NIGHT_BRIGHTNESS_MAX,
-                    )
-                    Text(
-                        "Mientras mueves la barra, la pantalla toma ese brillo para que lo pruebes.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
 
@@ -420,6 +436,30 @@ private fun SettingsScreen(
                 modifier = Modifier.padding(vertical = 12.dp).align(Alignment.CenterHorizontally),
             )
         }
+    }
+}
+
+/** Slider de brillo con porcentaje; muestra el brillo en vivo mientras lo mueves. */
+@Composable
+private fun BrightnessSlider(
+    title: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    onPreview: (Float?) -> Unit,
+    onChange: (Float) -> Unit,
+) {
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+        val percent = max(1, (value / range.endInclusive * 100).roundToInt())
+        Text("$title: $percent %", style = MaterialTheme.typography.bodyLarge)
+        Slider(
+            value = value,
+            onValueChange = { v ->
+                onChange(v)
+                onPreview(v)
+            },
+            onValueChangeFinished = { onPreview(null) },
+            valueRange = range,
+        )
     }
 }
 
