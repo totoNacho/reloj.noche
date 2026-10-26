@@ -4,6 +4,10 @@ Reloj de noche para Android, inspirado en el modo StandBy de iOS. Pensado para
 mostrarse mientras el teléfono se carga (por ejemplo en un cargador
 inalámbrico de velador).
 
+> Para retomar el proyecto (desde otro equipo o más adelante), lee
+> [ESTADO.md](ESTADO.md): resume qué se hizo, el mapa de archivos, cómo
+> compilar/firmar y lo que queda pendiente.
+
 ## Qué hace
 
 - Se muestra solo al cargar, como **protector de pantalla** (Ajustes >
