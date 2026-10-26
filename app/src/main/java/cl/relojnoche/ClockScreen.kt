@@ -74,7 +74,7 @@ fun ClockScreen(
     val context = LocalContext.current
     val minute by rememberMinuteTick()
 
-    // Modo noche: rojo tenue + brillo bajo.
+    // Modo noche: mantiene el color elegido y baja aún más el brillo.
     val roomDark by rememberRoomIsDark(enabled = settings.nightMode == NightMode.AUTO)
     val night = when (settings.nightMode) {
         NightMode.ALWAYS -> true
@@ -87,7 +87,7 @@ fun ClockScreen(
     val brightnessCallback by rememberUpdatedState(onBrightness)
     LaunchedEffect(brightness) { brightnessCallback(brightness) }
 
-    val colors = animatedFaceColors(faceColors(settings.colorIndex, night))
+    val colors = animatedFaceColors(faceColors(settings.colorIndex))
     val battery by rememberBatteryInfo()
     val nextAlarm = remember(minute, settings.showInfo) {
         if (settings.showInfo) nextAlarmMillis(context) else null

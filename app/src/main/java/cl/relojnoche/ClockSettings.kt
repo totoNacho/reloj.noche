@@ -16,11 +16,11 @@ enum class ClockStyle(val label: String) {
     FALLING("Caída"),
 }
 
-/** Cuándo pasar a modo noche: todo en rojo tenue, como el StandBy de iOS. */
+/** Cuándo usar el modo noche: mantiene el color elegido y baja aún más el brillo. */
 enum class NightMode(val label: String, val description: String) {
     AUTO("Automático", "Cuando la habitación está oscura (sensor de luz)"),
-    ALWAYS("Siempre", "El reloj siempre en rojo tenue"),
-    NEVER("Nunca", "Siempre con el color elegido"),
+    ALWAYS("Siempre", "Siempre con el brillo más bajo"),
+    NEVER("Nunca", "Nunca bajar más el brillo"),
 }
 
 @Immutable
@@ -241,17 +241,11 @@ data class FaceColors(
     val seconds: Color,    // segundero
 )
 
-private val NightRed = Color(0xFFFF2D20)
-
-fun faceColors(colorIndex: Int, night: Boolean): FaceColors {
-    if (night) {
-        return FaceColors(
-            primary = NightRed.copy(alpha = 0.9f),
-            secondary = NightRed.copy(alpha = 0.55f),
-            faint = NightRed.copy(alpha = 0.28f),
-            seconds = NightRed,
-        )
-    }
+/**
+ * Colores de la esfera, a partir del color elegido. El modo noche NO cambia el
+ * color: solo baja el brillo de la pantalla (ver effectiveBrightness).
+ */
+fun faceColors(colorIndex: Int): FaceColors {
     val c = Palette.getOrElse(colorIndex) { Palette[0] }.color
     // Segundero naranja como en iOS; si el color elegido ya es cálido, rojo.
     val secondHand = if (colorIndex == 2 || colorIndex == 3) Color(0xFFFF453A) else Color(0xFFFF9F0A)

@@ -227,7 +227,7 @@ private fun SettingsScreen(
                 key(s.style) {
                     ClockFace(
                         s.style, s,
-                        faceColors(s.colorIndex, night = s.nightMode == NightMode.ALWAYS),
+                        faceColors(s.colorIndex),
                         ClockInfo(battery, alarm),
                         Modifier.fillMaxSize(),
                     )
@@ -289,9 +289,7 @@ private fun SettingsScreen(
                         }
                     }
                 }
-                if (s.nightMode != NightMode.NEVER) {
-                    Hint("En modo noche el reloj se vuelve rojo tenue, sin importar el color.")
-                }
+
             }
 
             Section("Pantalla") {
