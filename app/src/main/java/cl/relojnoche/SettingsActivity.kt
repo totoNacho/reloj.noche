@@ -399,11 +399,17 @@ private fun SettingsScreen(
                     s.closeOnUnplug,
                 ) { v -> set { it.copy(closeOnUnplug = v) } }
                 Hint(
-                    "Si usas \"Proteger batería\" (carga hasta 80-85 %), Samsung puede no iniciar el " +
-                        "protector cuando la carga está en pausa. Alternativa: en Modos y rutinas crea " +
-                        "una rutina \"Si: Estado de carga (inalámbrica)\" → \"Entonces: Abrir app " +
-                        "Reloj de Noche\". Abierto así, el reloj mantiene la pantalla encendida " +
-                        "mientras siga en el cargador.",
+                    "¿El protector no aparece al cargar inalámbricamente con el teléfono " +
+                        "bloqueado? En Samsung, con \"Proteger batería\" activado (carga hasta " +
+                        "80-85 %), al llegar al tope la carga se pausa y el sistema deja de " +
+                        "considerarlo \"cargando\", así que no lanza el protector. No es la app.\n\n" +
+                        "Solución recomendada (más fiable): abre \"Modos y rutinas\", crea una " +
+                        "rutina con\n" +
+                        "  • Si: Carga > conectado / inalámbrico\n" +
+                        "  • Entonces: Abrir aplicación > Reloj de Noche\n" +
+                        "Así el reloj se abre apenas lo pones en el cargador, respeta el horario " +
+                        "que elegiste aquí y mantiene la pantalla encendida mientras siga cargando " +
+                        "(aunque la carga esté en pausa). Al retirarlo se cierra solo.",
                 )
             }
 

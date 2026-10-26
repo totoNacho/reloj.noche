@@ -76,8 +76,10 @@ class ClockDreamService : DreamService(), LifecycleOwner, SavedStateRegistryOwne
         val isPreview = battery == null || !battery.isPlugged
 
         if (!isPreview) {
-            // "Solo con carga inalámbrica": si está por cable, no mostrarse.
-            if (settings.onlyWireless && !battery!!.isWireless) {
+            // "Solo con carga inalámbrica": descartar solo si está claramente
+            // por cable (hay conector y NO es inalámbrico). Si la carga está
+            // pausada (plugged=0) no lo tratamos como cable.
+            if (settings.onlyWireless && battery!!.isPlugged && !battery.isWireless) {
                 finish()
                 return
             }

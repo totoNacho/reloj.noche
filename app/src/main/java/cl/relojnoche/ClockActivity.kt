@@ -21,36 +21,56 @@ import androidx.core.view.WindowInsetsControllerCompat
  * Reloj a pantalla completa (lo que abre el icono de la app).
  *
  * - Se muestra sobre la pantalla de bloqueo, como el StandBy de iOS.
- * - Mientras el teléfono está enchufado/en el cargador, la pantalla no se apaga.
- * - Al sacarlo del cargador se cierra solo (si está activado), con 3 s de
- *   gracia por si el cargador inalámbrico se desconecta un instante.
+ * - Mientras el teléfono está en el cargador, la pantalla no se apaga.
+ * - Al sacarlo del cargador se cierra solo (si está activado), con un margen
+ *   de gracia por si la carga se pausa un momento (p. ej. "Proteger batería").
+ * - Pensado para abrirse también desde una rutina de "Modos y rutinas"
+ *   (Si: carga inalámbrica -> Abrir Reloj de Noche), que en Samsung es más
+ *   fiable que el protector de pantalla cuando "Proteger batería" está activo.
  */
 class ClockActivity : ComponentActivity() {
 
     private val handler = Handler(Looper.getMainLooper())
 
-    private val closeIfStillUnplugged = Runnable {
-        if (SettingsStore.current.closeOnUnplug && readBattery(this)?.isPlugged != true) finish()
+    // Margen de gracia antes de cerrar al salir del cargador. Es amplio porque
+    // "Proteger batería" de Samsung pausa la carga al llegar al tope, y en esos
+    // instantes el sistema puede reportar brevemente "no cargando" aunque el
+    // teléfono siga sobre el cargador. No queremos cerrarnos por esas pausas.
+    private val unplugGraceMs = 20_000L
+
+    private val closeIfStillOffCharger = Runnable {
+        if (SettingsStore.current.closeOnUnplug && readBattery(this)?.isOnCharger != true) finish()
     }
 
     private val powerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            when (intent.action) {
-                Intent.ACTION_POWER_CONNECTED -> {
-                    handler.removeCallbacks(closeIfStillUnplugged)
-                    keepScreenOn(true)
-                }
-                Intent.ACTION_POWER_DISCONNECTED -> {
-                    keepScreenOn(false)
-                    handler.removeCallbacks(closeIfStillUnplugged)
-                    handler.postDelayed(closeIfStillUnplugged, 3000)
-                }
+            // Reaccionamos a cualquier cambio de batería (no solo CONNECTED/
+            // DISCONNECTED, que Samsung no siempre dispara al pausar la carga).
+            val onCharger = readBattery(context)?.isOnCharger == true
+            if (onCharger) {
+                handler.removeCallbacks(closeIfStillOffCharger)
+                keepScreenOn(true)
+            } else {
+                keepScreenOn(false)
+                handler.removeCallbacks(closeIfStillOffCharger)
+                handler.postDelayed(closeIfStillOffCharger, unplugGraceMs)
             }
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Si llega abierto por una rutina estando en el cargador, respetar la
+        // franja horaria igual que el protector de pantalla. Si lo abres a mano
+        // (no está cargando) NO se cierra: quieres verlo cuando tú quieras.
+        val settings = SettingsStore.current
+        val onCharger = readBattery(this)?.isOnCharger == true
+        if (onCharger && !settings.isWithinSchedule(System.currentTimeMillis())) {
+            finish()
+            return
+        }
+
         showOverLockScreen()
         goImmersive()
         setContent {
@@ -69,18 +89,18 @@ class ClockActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        val filter = IntentFilter().apply {
-            addAction(Intent.ACTION_POWER_CONNECTED)
-            addAction(Intent.ACTION_POWER_DISCONNECTED)
-        }
-        ContextCompat.registerReceiver(this, powerReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
-        keepScreenOn(readBattery(this)?.isPlugged == true)
+        // ACTION_BATTERY_CHANGED cubre también las pausas de carga de Samsung.
+        ContextCompat.registerReceiver(
+            this, powerReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        keepScreenOn(readBattery(this)?.isOnCharger == true)
     }
 
     override fun onStop() {
         super.onStop()
         runCatching { unregisterReceiver(powerReceiver) }
-        handler.removeCallbacks(closeIfStillUnplugged)
+        handler.removeCallbacks(closeIfStillOffCharger)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

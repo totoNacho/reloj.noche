@@ -111,6 +111,15 @@ fun isNightHour(millis: Long): Boolean {
 data class BatteryInfo(val percent: Int, val plugged: Int, val charging: Boolean) {
     val isPlugged: Boolean get() = plugged != 0
     val isWireless: Boolean get() = plugged == BatteryManager.BATTERY_PLUGGED_WIRELESS
+
+    /**
+     * "Está en el cargador" de forma tolerante: cuenta tanto si el sistema
+     * reporta un conector (plugged) como si está cargando o lleno. Con
+     * "Proteger batería" de Samsung la carga se PAUSA al llegar al tope y
+     * `plugged` puede reportar 0 aunque el teléfono siga físicamente sobre el
+     * cargador inalámbrico; por eso no basta con `isPlugged`.
+     */
+    val isOnCharger: Boolean get() = isPlugged || charging
 }
 
 fun Intent.toBatteryInfo(): BatteryInfo? {
