@@ -50,8 +50,16 @@ pausas de carga (ver abajo).
 - **Segundero suave** opcional (OFF por defecto): el barrido a 30 fps calienta,
   así que por defecto el reloj refresca 1 vez/seg (o 1 vez/min sin segundos).
 - **Horario**: franja "desde/hasta" (soporta cruzar medianoche) + días de la
-  semana; filtra cuándo aparece al cargar. NO enciende la pantalla solo a esa
-  hora (Android no deja a una app tomar la pantalla sola en segundo plano).
+  semana; filtra cuándo aparece al cargar. IMPORTANTE: el horario SOLO aplica
+  cuando el reloj lo abre la automatización (inicio automático / rutina, vía el
+  extra `ClockActivity.EXTRA_AUTO`). Si abres la app desde el ícono, se muestra
+  siempre, sin importar la hora. (Antes había un bug que la cerraba al abrirla
+  a mano estando cargando; ya corregido.)
+- **Inicio automático** (`PowerConnectionReceiver`): abre el reloj al conectar
+  la carga sin rutina externa. Requiere el permiso "mostrar sobre otras apps"
+  (SYSTEM_ALERT_WINDOW), que el usuario concede desde Ajustes de la app. Honra
+  franja horaria, umbral de batería y "solo inalámbrica". Es la alternativa a
+  la rutina de Samsung cuando esta no es fiable.
 - **Protección OLED**: mueve el reloj unos dp cada minuto.
 - Fecha, próxima alarma, batería y estado de carga.
 - Sin permisos peligrosos (el manifiesto no tiene `uses-permission`).

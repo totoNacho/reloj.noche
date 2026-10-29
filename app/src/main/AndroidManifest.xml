@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!--
+        Inicio automático: para que la app pueda abrirse sola al conectar la
+        carga (sin una rutina externa) necesita dibujarse sobre otras apps.
+        El usuario lo concede manualmente en Ajustes; no se pide en silencio.
+    -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <application
         android:name=".RelojApp"
         android:allowBackup="true"
@@ -56,5 +63,20 @@
                 android:name="android.service.dream"
                 android:resource="@xml/dream_info" />
         </service>
+
+        <!--
+            Inicio automático: escucha la conexión a la carga. ACTION_POWER_
+            CONNECTED es uno de los pocos broadcasts implícitos que se pueden
+            declarar en el manifiesto en Android moderno. El receiver solo actúa
+            si el usuario activó el inicio automático y concedió el permiso de
+            superposición.
+        -->
+        <receiver
+            android:name=".PowerConnectionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

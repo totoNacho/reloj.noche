@@ -61,6 +61,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -81,6 +82,8 @@ import kotlin.math.roundToInt
 class SettingsActivity : ComponentActivity() {
 
     private var dreamStatus by mutableStateOf<DreamStatus?>(null)
+    // Cambia al volver a la pantalla, para re-evaluar el permiso de superposición.
+    private var resumeTick by mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(
@@ -91,11 +94,14 @@ class SettingsActivity : ComponentActivity() {
         SettingsStore.update { it.copy(setupSeen = true) }
         setContent {
             RelojTheme {
+                // Leer resumeTick aquí fuerza recomponer al volver de Ajustes.
+                @Suppress("UNUSED_EXPRESSION") resumeTick
                 SettingsScreen(
                     dreamStatus = dreamStatus,
                     onOpenClock = ::openClock,
                     onOpenDreamSettings = ::openDreamSettings,
                     onPreviewBrightness = ::previewBrightness,
+                    onRequestOverlay = ::requestOverlayPermission,
                 )
             }
         }
@@ -104,6 +110,21 @@ class SettingsActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         dreamStatus = DreamStatus.read(this)
+        resumeTick++
+    }
+
+    /** Lleva al usuario a la pantalla del sistema para conceder "mostrar sobre otras apps". */
+    private fun requestOverlayPermission() {
+        if (canDrawOverlays(this)) return
+        val intent = Intent(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            android.net.Uri.parse("package:$packageName"),
+        )
+        try {
+            startActivity(intent)
+        } catch (_: ActivityNotFoundException) {
+            runCatching { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)) }
+        }
     }
 
     private fun openClock() {
@@ -190,6 +211,7 @@ private fun SettingsScreen(
     onOpenClock: () -> Unit,
     onOpenDreamSettings: () -> Unit,
     onPreviewBrightness: (Float?) -> Unit,
+    onRequestOverlay: () -> Unit,
 ) {
     val s by SettingsStore.state.collectAsState()
     val context = LocalContext.current
@@ -380,10 +402,62 @@ private fun SettingsScreen(
                     }
                     DaysPicker(s.scheduleDays) { v -> set { it.copy(scheduleDays = v) } }
                     Hint(
-                        "El horario se aplica al protector de pantalla cuando el teléfono está " +
-                            "cargando. No enciende la pantalla por sí solo a esa hora.",
+                        "El horario solo filtra cuándo aparece el reloj al CARGAR (protector de " +
+                            "pantalla o inicio automático). Si abres la app desde el ícono, se " +
+                            "muestra siempre, sin importar la hora.",
                     )
                 }
+            }
+
+            Section("Inicio automático") {
+                val overlayGranted = canDrawOverlays(context)
+                SwitchRow(
+                    "Abrir solo al conectar la carga",
+                    "Sin necesidad de una rutina. Requiere el permiso \"mostrar sobre otras apps\"",
+                    s.autoStart,
+                ) { v ->
+                    set { it.copy(autoStart = v) }
+                    if (v && !canDrawOverlays(context)) onRequestOverlay()
+                }
+                if (s.autoStart && !overlayGranted) {
+                    Text(
+                        "Falta el permiso \"mostrar sobre otras apps\". Sin él, la app no puede " +
+                            "abrirse sola al cargar.",
+                        color = Color(0xFFFF9F0A),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                    FilledTonalButton(
+                        onClick = onRequestOverlay,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    ) { Text("Conceder permiso") }
+                }
+                if (s.autoStart && overlayGranted) {
+                    Text(
+                        "✓ Permiso concedido. El reloj se abrirá al conectar la carga" +
+                            (if (s.scheduleEnabled) ", dentro del horario elegido." else "."),
+                        color = Color(0xFF30D158),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                        val label = if (s.autoStartBatteryMin == 0) "Sin límite"
+                                    else "${s.autoStartBatteryMin} %"
+                        Text("Solo si la batería supera: $label", style = MaterialTheme.typography.bodyLarge)
+                        Slider(
+                            value = s.autoStartBatteryMin.toFloat(),
+                            onValueChange = { v -> set { it.copy(autoStartBatteryMin = v.roundToInt()) } },
+                            valueRange = 0f..95f,
+                            steps = 18,
+                        )
+                    }
+                }
+                Hint(
+                    "El inicio automático abre el reloj apenas conectas la carga. Es la " +
+                        "alternativa a la rutina de Samsung. Al desconectar, el reloj se cierra " +
+                        "solo (si tienes activado \"Cerrar al sacarlo del cargador\").",
+                )
             }
 
             Section("Al cargar el teléfono") {

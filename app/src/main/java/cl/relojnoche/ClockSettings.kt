@@ -59,6 +59,15 @@ data class ClockSettings(
     val onlyWireless: Boolean = false,
     /** App: cerrar el reloj al sacar el teléfono del cargador. */
     val closeOnUnplug: Boolean = true,
+    /**
+     * Inicio automático: abrir el reloj solo al conectar la carga, sin
+     * depender de una rutina. Requiere el permiso "mostrar sobre otras apps"
+     * (SYSTEM_ALERT_WINDOW), porque Android no deja a una app en segundo plano
+     * lanzar una pantalla sola sin ese permiso.
+     */
+    val autoStart: Boolean = false,
+    /** Inicio automático: solo si la batería está por encima de este %. 0 = sin límite. */
+    val autoStartBatteryMin: Int = 0,
     /** Protector de pantalla: mostrarse solo dentro de una franja horaria y días. */
     val scheduleEnabled: Boolean = false,
     /** Inicio de la franja, en minutos desde medianoche (0..1439). */
@@ -136,6 +145,8 @@ object SettingsStore {
     private const val K_BURN_IN = "burn_in_shift"
     private const val K_ONLY_WIRELESS = "only_wireless"
     private const val K_CLOSE_UNPLUG = "close_on_unplug"
+    private const val K_AUTO_START = "auto_start"
+    private const val K_AUTO_START_BAT = "auto_start_battery_min"
     private const val K_SCHED_ENABLED = "schedule_enabled"
     private const val K_SCHED_START = "schedule_start"
     private const val K_SCHED_END = "schedule_end"
@@ -172,6 +183,8 @@ object SettingsStore {
             burnInShift = p.getBoolean(K_BURN_IN, d.burnInShift),
             onlyWireless = p.getBoolean(K_ONLY_WIRELESS, d.onlyWireless),
             closeOnUnplug = p.getBoolean(K_CLOSE_UNPLUG, d.closeOnUnplug),
+            autoStart = p.getBoolean(K_AUTO_START, d.autoStart),
+            autoStartBatteryMin = p.getInt(K_AUTO_START_BAT, d.autoStartBatteryMin).coerceIn(0, 100),
             scheduleEnabled = p.getBoolean(K_SCHED_ENABLED, d.scheduleEnabled),
             scheduleStart = p.getInt(K_SCHED_START, d.scheduleStart).coerceIn(0, 1439),
             scheduleEnd = p.getInt(K_SCHED_END, d.scheduleEnd).coerceIn(0, 1439),
@@ -201,6 +214,8 @@ object SettingsStore {
             ?.putBoolean(K_BURN_IN, s.burnInShift)
             ?.putBoolean(K_ONLY_WIRELESS, s.onlyWireless)
             ?.putBoolean(K_CLOSE_UNPLUG, s.closeOnUnplug)
+            ?.putBoolean(K_AUTO_START, s.autoStart)
+            ?.putInt(K_AUTO_START_BAT, s.autoStartBatteryMin)
             ?.putBoolean(K_SCHED_ENABLED, s.scheduleEnabled)
             ?.putInt(K_SCHED_START, s.scheduleStart)
             ?.putInt(K_SCHED_END, s.scheduleEnd)

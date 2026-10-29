@@ -30,6 +30,11 @@ import androidx.core.view.WindowInsetsControllerCompat
  */
 class ClockActivity : ComponentActivity() {
 
+    companion object {
+        /** El reloj lo abrió la automatización (inicio automático / rutina). */
+        const val EXTRA_AUTO = "cl.relojnoche.AUTO"
+    }
+
     private val handler = Handler(Looper.getMainLooper())
 
     // Margen de gracia antes de cerrar al salir del cargador. Es amplio porque
@@ -61,12 +66,14 @@ class ClockActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Si llega abierto por una rutina estando en el cargador, respetar la
-        // franja horaria igual que el protector de pantalla. Si lo abres a mano
-        // (no está cargando) NO se cierra: quieres verlo cuando tú quieras.
+        // La franja horaria SOLO se aplica cuando el reloj lo abre la
+        // automatización (inicio automático o una rutina que pase EXTRA_AUTO).
+        // Si lo abres tú desde el ícono, se muestra SIEMPRE, sin importar la
+        // hora: quieres poder verlo cuando quieras. (Antes se cerraba también
+        // al abrirlo a mano si estaba cargando; eso era un bug.)
         val settings = SettingsStore.current
-        val onCharger = readBattery(this)?.isOnCharger == true
-        if (onCharger && !settings.isWithinSchedule(System.currentTimeMillis())) {
+        val launchedAuto = intent?.getBooleanExtra(EXTRA_AUTO, false) == true
+        if (launchedAuto && !settings.isWithinSchedule(System.currentTimeMillis())) {
             finish()
             return
         }
