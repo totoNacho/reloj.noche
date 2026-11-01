@@ -73,7 +73,18 @@ pausas de carga (ver abajo).
     FOREGROUND_SERVICE_SPECIAL_USE, RECEIVE_BOOT_COMPLETED, POST_NOTIFICATIONS.
 - **Protección OLED**: mueve el reloj unos dp cada minuto.
 - Fecha, próxima alarma, batería y estado de carga.
-- Sin permisos peligrosos (el manifiesto no tiene `uses-permission`).
+- **Auto-actualización** (`UpdateChecker.kt`): en Ajustes > Actualizaciones,
+  "Buscar actualización" consulta el último Release de GitHub
+  (api.github.com/repos/totoNacho/reloj.noche/releases/latest), compara
+  `tag_name` (sin la "v") contra `BuildConfig.VERSION_NAME`, y si hay una más
+  nueva descarga el APK a cacheDir/updates y lanza el instalador del sistema vía
+  FileProvider (authority `${applicationId}.fileprovider`, res/xml/file_paths.xml).
+  Permiso REQUEST_INSTALL_PACKAGES. Versionado consistente: app = "1.0.<run>",
+  tag = "v1.0.<run>" (github.run_number).
+- Permisos declarados: SYSTEM_ALERT_WINDOW, FOREGROUND_SERVICE(_SPECIAL_USE),
+  RECEIVE_BOOT_COMPLETED, POST_NOTIFICATIONS, INTERNET, ACCESS_NETWORK_STATE,
+  REQUEST_INSTALL_PACKAGES. (Antes no tenía ninguno; los agregaron el inicio
+  automático en segundo plano y la auto-actualización.)
 
 ## Mapa de archivos (app/src/main/java/cl/relojnoche/)
 

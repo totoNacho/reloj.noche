@@ -40,6 +40,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
@@ -64,6 +65,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,6 +77,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -527,12 +532,119 @@ private fun SettingsScreen(
                 )
             }
 
+            Section("Actualizaciones") {
+                UpdateSection()
+            }
+
             Text(
                 "Versión ${BuildConfig.VERSION_NAME} · Letra Nunito (SIL Open Font License)",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(vertical = 12.dp).align(Alignment.CenterHorizontally),
             )
+        }
+    }
+}
+
+/** Estados posibles del chequeo de actualización. */
+private sealed interface UpdateState {
+    data object Idle : UpdateState
+    data object Checking : UpdateState
+    data object UpToDate : UpdateState
+    data class Available(val info: UpdateChecker.UpdateInfo) : UpdateState
+    data class Downloading(val percent: Int) : UpdateState
+    data class Error(val message: String) : UpdateState
+}
+
+/** Sección de auto-actualización: busca en GitHub Releases y ofrece instalar. */
+@Composable
+private fun UpdateSection() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var state by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
+
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+        when (val st = state) {
+            is UpdateState.Available -> {
+                Text(
+                    "Hay una versión nueva: ${st.info.versionName}",
+                    color = Color(0xFF30D158),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                if (st.info.notes.isNotBlank()) {
+                    Text(
+                        st.info.notes.take(300),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        state = UpdateState.Downloading(0)
+                        scope.launch {
+                            try {
+                                withContext(Dispatchers.IO) {
+                                    UpdateChecker.downloadAndInstall(context, st.info.apkUrl) { p ->
+                                        state = UpdateState.Downloading(p)
+                                    }
+                                }
+                                // El instalador del sistema toma el control aquí.
+                                state = UpdateState.Idle
+                            } catch (e: Exception) {
+                                state = UpdateState.Error(e.message ?: "Error al descargar")
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Descargar e instalar ${st.info.versionName}") }
+            }
+
+            is UpdateState.Downloading -> {
+                Text("Descargando… ${st.percent}%", style = MaterialTheme.typography.bodyLarge)
+                Spacer(Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = { st.percent / 100f },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            else -> {
+                Button(
+                    onClick = {
+                        state = UpdateState.Checking
+                        scope.launch {
+                            val result = withContext(Dispatchers.IO) {
+                                runCatching { UpdateChecker.checkForUpdate(BuildConfig.VERSION_NAME) }
+                            }
+                            state = result.fold(
+                                onSuccess = { info ->
+                                    if (info != null) UpdateState.Available(info) else UpdateState.UpToDate
+                                },
+                                onFailure = { UpdateState.Error(it.message ?: "No se pudo comprobar") },
+                            )
+                        }
+                    },
+                    enabled = st !is UpdateState.Checking,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(if (st is UpdateState.Checking) "Buscando…" else "Buscar actualización")
+                }
+                val msg = when (st) {
+                    is UpdateState.UpToDate -> "Ya tienes la última versión."
+                    is UpdateState.Error -> "No se pudo comprobar: ${st.message}"
+                    else -> null
+                }
+                if (msg != null) {
+                    Text(
+                        msg,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            }
         }
     }
 }
