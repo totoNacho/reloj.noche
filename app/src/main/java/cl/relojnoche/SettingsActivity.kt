@@ -102,6 +102,7 @@ class SettingsActivity : ComponentActivity() {
                     onOpenDreamSettings = ::openDreamSettings,
                     onPreviewBrightness = ::previewBrightness,
                     onRequestOverlay = ::requestOverlayPermission,
+                    onIgnoreBatteryOptimization = ::requestIgnoreBatteryOptimization,
                 )
             }
         }
@@ -111,6 +112,19 @@ class SettingsActivity : ComponentActivity() {
         super.onResume()
         dreamStatus = DreamStatus.read(this)
         resumeTick++
+    }
+
+    /** Pide excluir la app de la optimización de batería (clave en Samsung). */
+    private fun requestIgnoreBatteryOptimization() {
+        // Primero intenta el diálogo directo; si no, abre la lista del sistema.
+        val direct = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+            data = android.net.Uri.parse("package:$packageName")
+        }
+        try {
+            startActivity(direct)
+        } catch (_: ActivityNotFoundException) {
+            runCatching { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
+        }
     }
 
     /** Lleva al usuario a la pantalla del sistema para conceder "mostrar sobre otras apps". */
@@ -212,6 +226,7 @@ private fun SettingsScreen(
     onOpenDreamSettings: () -> Unit,
     onPreviewBrightness: (Float?) -> Unit,
     onRequestOverlay: () -> Unit,
+    onIgnoreBatteryOptimization: () -> Unit,
 ) {
     val s by SettingsStore.state.collectAsState()
     val context = LocalContext.current
@@ -417,7 +432,12 @@ private fun SettingsScreen(
                     s.autoStart,
                 ) { v ->
                     set { it.copy(autoStart = v) }
-                    if (v && !canDrawOverlays(context)) onRequestOverlay()
+                    if (v) {
+                        if (!canDrawOverlays(context)) onRequestOverlay()
+                        AutoStartService.startIfEnabled(context)
+                    } else {
+                        AutoStartService.stop(context)
+                    }
                 }
                 if (s.autoStart && !overlayGranted) {
                     Text(
@@ -434,12 +454,18 @@ private fun SettingsScreen(
                 }
                 if (s.autoStart && overlayGranted) {
                     Text(
-                        "✓ Permiso concedido. El reloj se abrirá al conectar la carga" +
-                            (if (s.scheduleEnabled) ", dentro del horario elegido." else "."),
+                        "✓ Activo. El reloj se abrirá al conectar la carga" +
+                            (if (s.scheduleEnabled) ", dentro del horario elegido." else ".") +
+                            " Verás una notificación fija mientras esté activo (Android lo exige).",
                         color = Color(0xFF30D158),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
+                    FilledTonalButton(
+                        onClick = onIgnoreBatteryOptimization,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    ) { Text("Excluir de la optimización de batería") }
+                    Hint("En Samsung, sin esta exclusión el sistema puede cerrar el servicio y dejar de abrir el reloj.")
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
                         val label = if (s.autoStartBatteryMin == 0) "Sin límite"

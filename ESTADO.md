@@ -55,11 +55,22 @@ pausas de carga (ver abajo).
   extra `ClockActivity.EXTRA_AUTO`). Si abres la app desde el ícono, se muestra
   siempre, sin importar la hora. (Antes había un bug que la cerraba al abrirla
   a mano estando cargando; ya corregido.)
-- **Inicio automático** (`PowerConnectionReceiver`): abre el reloj al conectar
-  la carga sin rutina externa. Requiere el permiso "mostrar sobre otras apps"
-  (SYSTEM_ALERT_WINDOW), que el usuario concede desde Ajustes de la app. Honra
-  franja horaria, umbral de batería y "solo inalámbrica". Es la alternativa a
-  la rutina de Samsung cuando esta no es fiable.
+- **Inicio automático**: abre el reloj al conectar la carga sin rutina externa.
+  Requiere el permiso "mostrar sobre otras apps" (SYSTEM_ALERT_WINDOW). Honra
+  franja horaria, umbral de batería y "solo inalámbrica". Lógica compartida en
+  `AutoStart.kt` (`shouldAutoShow`, `launchClockAuto`, `canDrawOverlays`).
+  - Vía principal: **`AutoStartService`** = servicio en PRIMER PLANO (estilo
+    NightDream) que queda vivo y registra el receiver de carga en runtime, para
+    que el evento no se pierda (en Samsung el receiver de manifiesto NO es
+    fiable en segundo plano). Muestra una notificación permanente discreta
+    (IMPORTANCE_MIN) con botón "Desactivar". START_STICKY.
+  - `BootReceiver` revive el servicio tras BOOT_COMPLETED / MY_PACKAGE_REPLACED.
+  - `RelojApp.onCreate` arranca el servicio si autoStart está activo.
+  - `PowerConnectionReceiver` (manifiesto) queda solo como refuerzo.
+  - Ajustes ofrece botón para excluir de optimización de batería
+    (ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS) — clave en Samsung.
+  - Permisos: SYSTEM_ALERT_WINDOW, FOREGROUND_SERVICE,
+    FOREGROUND_SERVICE_SPECIAL_USE, RECEIVE_BOOT_COMPLETED, POST_NOTIFICATIONS.
 - **Protección OLED**: mueve el reloj unos dp cada minuto.
 - Fecha, próxima alarma, batería y estado de carga.
 - Sin permisos peligrosos (el manifiesto no tiene `uses-permission`).

@@ -8,6 +8,16 @@
     -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+    <!--
+        Servicio en primer plano que vigila la carga y abre el reloj, al estilo
+        NightDream. Más fiable que un receiver de manifiesto porque queda vivo.
+        Muestra una notificación permanente discreta mientras está activo.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".RelojApp"
         android:allowBackup="true"
@@ -76,6 +86,26 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Servicio en primer plano del inicio automático. -->
+        <service
+            android:name=".AutoStartService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Mantener el reloj listo para abrirse al conectar la carga" />
+        </service>
+
+        <!-- Revive el servicio al encender o actualizar el teléfono. -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
     </application>
