@@ -60,6 +60,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -562,6 +563,17 @@ private fun UpdateSection() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var state by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
+
+    // Comprobación automática al abrir Ajustes: si hay versión nueva, muestra el
+    // aviso sin que el usuario toque nada. En silencio: si no hay novedad o
+    // falla la red, no molesta (se queda en Idle con el botón normal).
+    LaunchedEffect(Unit) {
+        if (state != UpdateState.Idle) return@LaunchedEffect
+        val info = withContext(Dispatchers.IO) {
+            runCatching { UpdateChecker.checkForUpdate(BuildConfig.VERSION_NAME) }.getOrNull()
+        }
+        if (info != null && state == UpdateState.Idle) state = UpdateState.Available(info)
+    }
 
     Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
         when (val st = state) {
