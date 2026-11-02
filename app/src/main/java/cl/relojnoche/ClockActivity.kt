@@ -22,8 +22,8 @@ import androidx.core.view.WindowInsetsControllerCompat
  *
  * - Se muestra sobre la pantalla de bloqueo, como el StandBy de iOS.
  * - Mientras el teléfono está en el cargador, la pantalla no se apaga.
- * - Al sacarlo del cargador se cierra solo (si está activado), con un margen
- *   de gracia por si la carga se pausa un momento (p. ej. "Proteger batería").
+ * - Al sacarlo de la base se cierra solo (si está activado), con un margen de
+ *   gracia corto que reconfirma el estado para no cerrarse por un parpadeo.
  * - Pensado para abrirse también desde una rutina de "Modos y rutinas"
  *   (Si: carga inalámbrica -> Abrir Reloj de Noche), que en Samsung es más
  *   fiable que el protector de pantalla cuando "Proteger batería" está activo.
@@ -37,22 +37,28 @@ class ClockActivity : ComponentActivity() {
 
     private val handler = Handler(Looper.getMainLooper())
 
-    // Margen de gracia antes de cerrar al salir del cargador. Es amplio porque
-    // "Proteger batería" de Samsung pausa la carga al llegar al tope, y en esos
-    // instantes el sistema puede reportar brevemente "no cargando" aunque el
-    // teléfono siga sobre el cargador. No queremos cerrarnos por esas pausas.
-    private val unplugGraceMs = 20_000L
+    // Margen de gracia antes de cerrar al salir de la base. Corto: solo cubre
+    // el parpadeo del estado al mover el teléfono. Al vencer, se RECONFIRMA el
+    // estado real antes de cerrar, así no se queda abierta ni se cierra por un
+    // parpadeo momentáneo.
+    private val unplugGraceMs = 6_000L
 
     private val closeIfStillOffCharger = Runnable {
-        if (SettingsStore.current.closeOnUnplug && readBattery(this)?.isOnCharger != true) finish()
+        // Para decidir el cierre usamos isPlugged (conector presente), NO
+        // isOnCharger: al sacar el teléfono de la base inalámbrica el conector
+        // desaparece de inmediato, aunque "charging" tarde en actualizarse.
+        if (SettingsStore.current.closeOnUnplug && readBattery(this)?.isPlugged != true) {
+            finish()
+        }
     }
 
     private val powerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            // Reaccionamos a cualquier cambio de batería (no solo CONNECTED/
-            // DISCONNECTED, que Samsung no siempre dispara al pausar la carga).
-            val onCharger = readBattery(context)?.isOnCharger == true
-            if (onCharger) {
+            // isPlugged = hay fuente de energía conectada. Es la señal fiable de
+            // "está en la base". (isOnCharger era demasiado tolerante y dejaba
+            // la app abierta tras sacarla.)
+            val plugged = readBattery(context)?.isPlugged == true
+            if (plugged) {
                 handler.removeCallbacks(closeIfStillOffCharger)
                 keepScreenOn(true)
             } else {
@@ -101,7 +107,15 @@ class ClockActivity : ComponentActivity() {
             this, powerReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED),
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
-        keepScreenOn(readBattery(this)?.isOnCharger == true)
+        // Al volver a primer plano, si ya no está en la base, cerrar (tras la
+        // gracia). Cubre el caso de sacarlo con la pantalla ya apagada: cuando
+        // el sistema reactiva la Activity, reevaluamos el estado.
+        val plugged = readBattery(this)?.isPlugged == true
+        keepScreenOn(plugged)
+        if (!plugged) {
+            handler.removeCallbacks(closeIfStillOffCharger)
+            handler.postDelayed(closeIfStillOffCharger, unplugGraceMs)
+        }
     }
 
     override fun onStop() {
