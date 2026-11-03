@@ -37,35 +37,38 @@ class ClockActivity : ComponentActivity() {
 
     private val handler = Handler(Looper.getMainLooper())
 
-    // Margen de gracia antes de cerrar al salir de la base. Corto: solo cubre
-    // el parpadeo del estado al mover el teléfono. Al vencer, se RECONFIRMA el
-    // estado real antes de cerrar, así no se queda abierta ni se cierra por un
-    // parpadeo momentáneo.
-    private val unplugGraceMs = 6_000L
+    // Sondeo periódico del estado de carga. No dependemos solo del broadcast
+    // ACTION_BATTERY_CHANGED porque en Samsung con carga inalámbrica NO siempre
+    // llega al sacar el teléfono (la app quedaba abierta). Cada pocos segundos
+    // revisamos directamente; si lleva varias lecturas seguidas fuera de la
+    // base, cerramos. Así es fiable aunque el evento no se dispare.
+    private val pollIntervalMs = 3_000L
+    private val readingsToClose = 2       // ~2 lecturas fuera = ~3-6 s de gracia
+    private var offChargerReadings = 0
 
-    private val closeIfStillOffCharger = Runnable {
-        // Para decidir el cierre usamos isPlugged (conector presente), NO
-        // isOnCharger: al sacar el teléfono de la base inalámbrica el conector
-        // desaparece de inmediato, aunque "charging" tarde en actualizarse.
-        if (SettingsStore.current.closeOnUnplug && readBattery(this)?.isPlugged != true) {
-            finish()
+    private val poll = object : Runnable {
+        override fun run() {
+            val plugged = readBattery(this@ClockActivity)?.isPlugged == true
+            keepScreenOn(plugged)
+            if (plugged) {
+                offChargerReadings = 0
+            } else {
+                offChargerReadings++
+                if (SettingsStore.current.closeOnUnplug && offChargerReadings >= readingsToClose) {
+                    finish()
+                    return
+                }
+            }
+            handler.postDelayed(this, pollIntervalMs)
         }
     }
 
+    // Refuerzo inmediato: si el evento SÍ llega, reaccionamos sin esperar al sondeo.
     private val powerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            // isPlugged = hay fuente de energía conectada. Es la señal fiable de
-            // "está en la base". (isOnCharger era demasiado tolerante y dejaba
-            // la app abierta tras sacarla.)
             val plugged = readBattery(context)?.isPlugged == true
-            if (plugged) {
-                handler.removeCallbacks(closeIfStillOffCharger)
-                keepScreenOn(true)
-            } else {
-                keepScreenOn(false)
-                handler.removeCallbacks(closeIfStillOffCharger)
-                handler.postDelayed(closeIfStillOffCharger, unplugGraceMs)
-            }
+            keepScreenOn(plugged)
+            if (plugged) offChargerReadings = 0
         }
     }
 
@@ -102,26 +105,20 @@ class ClockActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        // ACTION_BATTERY_CHANGED cubre también las pausas de carga de Samsung.
         ContextCompat.registerReceiver(
             this, powerReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED),
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
-        // Al volver a primer plano, si ya no está en la base, cerrar (tras la
-        // gracia). Cubre el caso de sacarlo con la pantalla ya apagada: cuando
-        // el sistema reactiva la Activity, reevaluamos el estado.
-        val plugged = readBattery(this)?.isPlugged == true
-        keepScreenOn(plugged)
-        if (!plugged) {
-            handler.removeCallbacks(closeIfStillOffCharger)
-            handler.postDelayed(closeIfStillOffCharger, unplugGraceMs)
-        }
+        // Arrancar el sondeo: fija la pantalla y vigila si sigue en la base.
+        offChargerReadings = 0
+        handler.removeCallbacks(poll)
+        handler.post(poll)
     }
 
     override fun onStop() {
         super.onStop()
         runCatching { unregisterReceiver(powerReceiver) }
-        handler.removeCallbacks(closeIfStillOffCharger)
+        handler.removeCallbacks(poll)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
