@@ -103,7 +103,12 @@ fun rememberDigitMetrics(style: TextStyle): DigitMetrics {
 private fun Modifier.placeInCell(textTop: Dp): Modifier =
     this.wrapContentSize(Alignment.TopCenter, unbounded = true).offset(y = textTop)
 
-enum class DigitMotion { STATIC, ROLL, FALL }
+enum class DigitMotion {
+    STATIC,
+    ROLL,
+    FALL,        // caída con gravedad y rebote, color fijo
+    FALL_COLOR,  // caída rápida; cada dígito nuevo toma un color del arcoíris
+}
 
 /**
  * Dibuja una hora tipo "09:41" con una celda de ancho fijo por carácter.
@@ -130,8 +135,12 @@ fun ClockDigits(
                     when {
                         ch == ':' -> Glyph(":", style, colonColor, Modifier.placeInCell(metrics.colonTextTop))
                         motion == DigitMotion.FALL -> FallingGlyph(
-                            ch, style, color, metrics.cellHeight, metrics.digitTextTop,
-                            enterDelayBaseMs + i * 70,
+                            ch, style, metrics.cellHeight, metrics.digitTextTop,
+                            enterDelayBaseMs + i * 70, instant = false, colorProvider = { color },
+                        )
+                        motion == DigitMotion.FALL_COLOR -> FallingGlyph(
+                            ch, style, metrics.cellHeight, metrics.digitTextTop,
+                            enterDelayBaseMs + i * 60, instant = true, colorProvider = { nextRainbow() },
                         )
                         motion == DigitMotion.ROLL -> RollingGlyph(ch, style, color, metrics.digitTextTop)
                         else -> Glyph(ch.toString(), style, color, Modifier.placeInCell(metrics.digitTextTop))
@@ -141,6 +150,10 @@ fun ClockDigits(
         }
     }
 }
+
+/** Contador global para que los colores del arcoíris avancen dígito a dígito. */
+private var rainbowCounter = 0
+private fun nextRainbow(): Color = RainbowColors[rainbowCounter++ % RainbowColors.size]
 
 @Composable
 fun Glyph(text: String, style: TextStyle, color: Color, modifier: Modifier = Modifier) {
@@ -179,7 +192,7 @@ private const val IMPACT_MS = 430
 private const val LEAVE_MS = 520
 
 /** Un dígito en pantalla con sus propias animaciones (entra cayendo, luego se va cayendo). */
-private class FallItem(val ch: Char) {
+private class FallItem(val ch: Char, val color: Color) {
     val y = Animatable(DROP_START)  // posición de entrada, en altos de celda
     val fall = Animatable(0f)        // progreso de la salida 0..1
     val squash = Animatable(0f)      // aplastado al tocar el piso
@@ -198,6 +211,11 @@ private val DropSpec: AnimationSpec<Float> = keyframes {
     0f at 840
 }
 
+/** Caída rápida (casi instantánea), sin rebote, para el estilo "Colores". */
+private const val FAST_FALL_MS = 240
+private const val FAST_LEAVE_MS = 200
+private val FastDropSpec: AnimationSpec<Float> = tween(FAST_FALL_MS, easing = EaseInQuad)
+
 /**
  * Un dígito que, al cambiar, deja caer el valor viejo (se inclina y se
  * desvanece) mientras el nuevo cae desde arriba y rebota al llegar.
@@ -208,22 +226,27 @@ private val DropSpec: AnimationSpec<Float> = keyframes {
 private fun FallingGlyph(
     ch: Char,
     style: TextStyle,
-    color: Color,
     cellHeight: Dp,
     textTop: Dp,
     enterDelayMs: Int,
+    instant: Boolean,
+    colorProvider: () -> Color,
 ) {
     val h = with(LocalDensity.current) { cellHeight.toPx() }
     // Cada valor es un objeto propio con sus animaciones: el nuevo nace ya
     // escondido arriba y el viejo sigue visible hasta que empieza a caer, así
     // nunca hay un cuadro en blanco entre uno y otro.
     val items = remember { mutableStateListOf<FallItem>() }
+    val dropSpec = if (instant) FastDropSpec else DropSpec
+    val leaveMs = if (instant) FAST_LEAVE_MS else LEAVE_MS
+    val impactMs = if (instant) FAST_FALL_MS else IMPACT_MS
 
     LaunchedEffect(ch) {
         val previous = items.lastOrNull { !it.leaving }
         if (previous?.ch == ch) return@LaunchedEffect
         val first = previous == null
-        val item = FallItem(ch)
+        // El color se decide al nacer el dígito (en "Colores", el siguiente del arcoíris).
+        val item = FallItem(ch, colorProvider())
         items.add(item)
         coroutineScope {
             if (previous != null) {
@@ -231,7 +254,7 @@ private fun FallingGlyph(
                     try {
                         previous.tilt = if (Random.nextBoolean()) 1f else -1f
                         previous.leaving = true
-                        previous.fall.animateTo(1f, tween(LEAVE_MS, easing = EaseInQuad))
+                        previous.fall.animateTo(1f, tween(leaveMs, easing = EaseInQuad))
                     } finally {
                         items.remove(previous)
                     }
@@ -239,12 +262,14 @@ private fun FallingGlyph(
             }
             launch {
                 if (first) delay(enterDelayMs.toLong())
-                item.y.animateTo(0f, DropSpec)
+                item.y.animateTo(0f, dropSpec)
             }
-            launch {
-                delay((if (first) enterDelayMs else 0) + IMPACT_MS.toLong())
-                item.squash.animateTo(1f, tween(70, easing = EaseOutQuad))
-                item.squash.animateTo(0f, tween(240, easing = EaseOutQuad))
+            if (!instant) {
+                launch {
+                    delay((if (first) enterDelayMs else 0) + impactMs.toLong())
+                    item.squash.animateTo(1f, tween(70, easing = EaseOutQuad))
+                    item.squash.animateTo(0f, tween(240, easing = EaseOutQuad))
+                }
             }
         }
     }
@@ -253,7 +278,7 @@ private fun FallingGlyph(
         items.forEach { item ->
             key(item) {
                 Glyph(
-                    item.ch.toString(), style, color,
+                    item.ch.toString(), style, item.color,
                     Modifier
                         .placeInCell(textTop)
                         .graphicsLayer {

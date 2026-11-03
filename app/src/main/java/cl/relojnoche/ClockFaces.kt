@@ -43,7 +43,8 @@ fun ClockFace(
     when (style) {
         ClockStyle.DIGITAL -> DigitalClock(settings, colors, info, modifier)
         ClockStyle.ANALOG -> AnalogClock(settings, colors, info, modifier)
-        ClockStyle.FALLING -> FallingClock(settings, colors, info, modifier)
+        ClockStyle.FALLING -> FallingClock(settings, colors, info, modifier, DigitMotion.FALL)
+        ClockStyle.RAINBOW -> FallingClock(settings, colors, info, modifier, DigitMotion.FALL_COLOR)
     }
 }
 
@@ -180,7 +181,13 @@ private const val FALL_EDGE = 0.16f  // borde que se desvanece arriba y abajo
  * desde arriba y rebota, y el valor anterior se desploma y desaparece.
  */
 @Composable
-fun FallingClock(settings: ClockSettings, colors: FaceColors, info: ClockInfo, modifier: Modifier = Modifier) {
+fun FallingClock(
+    settings: ClockSettings,
+    colors: FaceColors,
+    info: ClockInfo,
+    modifier: Modifier = Modifier,
+    motion: DigitMotion = DigitMotion.FALL,
+) {
     // La caída muestra siempre segundos, así que refresca cada segundo.
     val now by rememberTimeMillis(smooth = false, ticking = true)
     val t = zonedTime(now)
@@ -218,7 +225,7 @@ fun FallingClock(settings: ClockSettings, colors: FaceColors, info: ClockInfo, m
             if (landscape) {
                 Box(rowModifier, contentAlignment = Alignment.Center) {
                     ClockDigits(
-                        "$hh:$mm:$ss", style, m, colors.primary, DigitMotion.FALL,
+                        "$hh:$mm:$ss", style, m, colors.primary, motion,
                         colonColor = colors.secondary,
                     )
                 }
@@ -226,7 +233,7 @@ fun FallingClock(settings: ClockSettings, colors: FaceColors, info: ClockInfo, m
                 listOf(hh, mm, ss).forEachIndexed { row, part ->
                     Box(rowModifier, contentAlignment = Alignment.Center) {
                         ClockDigits(
-                            part, style, m, colors.primary, DigitMotion.FALL,
+                            part, style, m, colors.primary, motion,
                             enterDelayBaseMs = row * 180,
                         )
                     }

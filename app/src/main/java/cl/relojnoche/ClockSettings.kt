@@ -14,6 +14,7 @@ enum class ClockStyle(val label: String) {
     DIGITAL("Digital"),
     ANALOG("Analógico"),
     FALLING("Caída"),
+    RAINBOW("Colores"),
 }
 
 /** Cuándo usar el modo noche: mantiene el color elegido y baja aún más el brillo. */
@@ -245,6 +246,18 @@ val Palette = listOf(
     NamedColor("Índigo", Color(0xFF5E5CE6)),
     NamedColor("Morado", Color(0xFFBF5AF2)),
     NamedColor("Rosa", Color(0xFFFF375F)),
+)
+
+/** Colores vivos para el estilo "Colores": cada dígito que cae toma el siguiente. */
+val RainbowColors = listOf(
+    Color(0xFFFF453A), // rojo
+    Color(0xFFFF9F0A), // naranja
+    Color(0xFFFFD60A), // amarillo
+    Color(0xFF30D158), // verde
+    Color(0xFF64D2FF), // cian
+    Color(0xFF0A84FF), // azul
+    Color(0xFFBF5AF2), // morado
+    Color(0xFFFF375F), // rosa
 )
 
 /** Colores ya resueltos para pintar una esfera. */
