@@ -42,33 +42,40 @@ class ClockActivity : ComponentActivity() {
     // llega al sacar el teléfono (la app quedaba abierta). Cada pocos segundos
     // revisamos directamente; si lleva varias lecturas seguidas fuera de la
     // base, cerramos. Así es fiable aunque el evento no se dispare.
-    private val pollIntervalMs = 3_000L
-    private val readingsToClose = 2       // ~2 lecturas fuera = ~3-6 s de gracia
-    private var offChargerReadings = 0
+    // Cierre INMEDIATO al sacar el teléfono de la base: una sola lectura fuera
+    // de la base basta. Dos vías para que sea instantáneo aunque una falle:
+    //  1) el evento (ACTION_POWER_DISCONNECTED / BATTERY_CHANGED) cierra al acto;
+    //  2) un sondeo cada medio segundo, por si el sistema no entrega el evento
+    //     (pasa en Samsung con carga inalámbrica).
+    private val pollIntervalMs = 500L
+
+    // Solo se cierra si antes estuvo en la base durante esta sesión. Así, si lo
+    // abres a mano sin estar cargando, no se cierra solo al instante.
+    private var sawCharger = false
+
+    /** Revisa el estado real; cierra de inmediato si estuvo en la base y ya no. */
+    private fun checkCharger(): Boolean {
+        val plugged = readBattery(this)?.isPlugged == true
+        keepScreenOn(plugged)
+        if (plugged) {
+            sawCharger = true
+        } else if (sawCharger && SettingsStore.current.closeOnUnplug) {
+            finish()
+            return true
+        }
+        return false
+    }
 
     private val poll = object : Runnable {
         override fun run() {
-            val plugged = readBattery(this@ClockActivity)?.isPlugged == true
-            keepScreenOn(plugged)
-            if (plugged) {
-                offChargerReadings = 0
-            } else {
-                offChargerReadings++
-                if (SettingsStore.current.closeOnUnplug && offChargerReadings >= readingsToClose) {
-                    finish()
-                    return
-                }
-            }
+            if (checkCharger()) return
             handler.postDelayed(this, pollIntervalMs)
         }
     }
 
-    // Refuerzo inmediato: si el evento SÍ llega, reaccionamos sin esperar al sondeo.
     private val powerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            val plugged = readBattery(context)?.isPlugged == true
-            keepScreenOn(plugged)
-            if (plugged) offChargerReadings = 0
+            checkCharger()
         }
     }
 
@@ -105,12 +112,12 @@ class ClockActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        ContextCompat.registerReceiver(
-            this, powerReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED),
-            ContextCompat.RECEIVER_NOT_EXPORTED,
-        )
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_BATTERY_CHANGED)
+            addAction(Intent.ACTION_POWER_DISCONNECTED)
+        }
+        ContextCompat.registerReceiver(this, powerReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         // Arrancar el sondeo: fija la pantalla y vigila si sigue en la base.
-        offChargerReadings = 0
         handler.removeCallbacks(poll)
         handler.post(poll)
     }

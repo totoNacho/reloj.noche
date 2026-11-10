@@ -107,7 +107,7 @@ enum class DigitMotion {
     STATIC,
     ROLL,
     FALL,        // caída con gravedad y rebote, color fijo
-    FALL_COLOR,  // caída rápida; cada dígito nuevo toma un color del arcoíris
+    FALL_COLOR,  // la misma caída; cada dígito nuevo toma un color del arcoíris
 }
 
 /**
@@ -136,11 +136,12 @@ fun ClockDigits(
                         ch == ':' -> Glyph(":", style, colonColor, Modifier.placeInCell(metrics.colonTextTop))
                         motion == DigitMotion.FALL -> FallingGlyph(
                             ch, style, metrics.cellHeight, metrics.digitTextTop,
-                            enterDelayBaseMs + i * 70, instant = false, colorProvider = { color },
+                            enterDelayBaseMs + i * 70, colorProvider = { color },
                         )
+                        // Misma caída que "Caída"; solo cambia el color de cada dígito nuevo.
                         motion == DigitMotion.FALL_COLOR -> FallingGlyph(
                             ch, style, metrics.cellHeight, metrics.digitTextTop,
-                            enterDelayBaseMs + i * 60, instant = true, colorProvider = { nextRainbow() },
+                            enterDelayBaseMs + i * 70, colorProvider = { nextRainbow() },
                         )
                         motion == DigitMotion.ROLL -> RollingGlyph(ch, style, color, metrics.digitTextTop)
                         else -> Glyph(ch.toString(), style, color, Modifier.placeInCell(metrics.digitTextTop))
@@ -211,10 +212,6 @@ private val DropSpec: AnimationSpec<Float> = keyframes {
     0f at 840
 }
 
-/** Caída rápida (casi instantánea), sin rebote, para el estilo "Colores". */
-private const val FAST_FALL_MS = 240
-private const val FAST_LEAVE_MS = 200
-private val FastDropSpec: AnimationSpec<Float> = tween(FAST_FALL_MS, easing = EaseInQuad)
 
 /**
  * Un dígito que, al cambiar, deja caer el valor viejo (se inclina y se
@@ -229,7 +226,6 @@ private fun FallingGlyph(
     cellHeight: Dp,
     textTop: Dp,
     enterDelayMs: Int,
-    instant: Boolean,
     colorProvider: () -> Color,
 ) {
     val h = with(LocalDensity.current) { cellHeight.toPx() }
@@ -237,9 +233,6 @@ private fun FallingGlyph(
     // escondido arriba y el viejo sigue visible hasta que empieza a caer, así
     // nunca hay un cuadro en blanco entre uno y otro.
     val items = remember { mutableStateListOf<FallItem>() }
-    val dropSpec = if (instant) FastDropSpec else DropSpec
-    val leaveMs = if (instant) FAST_LEAVE_MS else LEAVE_MS
-    val impactMs = if (instant) FAST_FALL_MS else IMPACT_MS
 
     LaunchedEffect(ch) {
         val previous = items.lastOrNull { !it.leaving }
@@ -254,7 +247,7 @@ private fun FallingGlyph(
                     try {
                         previous.tilt = if (Random.nextBoolean()) 1f else -1f
                         previous.leaving = true
-                        previous.fall.animateTo(1f, tween(leaveMs, easing = EaseInQuad))
+                        previous.fall.animateTo(1f, tween(LEAVE_MS, easing = EaseInQuad))
                     } finally {
                         items.remove(previous)
                     }
@@ -262,14 +255,12 @@ private fun FallingGlyph(
             }
             launch {
                 if (first) delay(enterDelayMs.toLong())
-                item.y.animateTo(0f, dropSpec)
+                item.y.animateTo(0f, DropSpec)
             }
-            if (!instant) {
-                launch {
-                    delay((if (first) enterDelayMs else 0) + impactMs.toLong())
-                    item.squash.animateTo(1f, tween(70, easing = EaseOutQuad))
-                    item.squash.animateTo(0f, tween(240, easing = EaseOutQuad))
-                }
+            launch {
+                delay((if (first) enterDelayMs else 0) + IMPACT_MS.toLong())
+                item.squash.animateTo(1f, tween(70, easing = EaseOutQuad))
+                item.squash.animateTo(0f, tween(240, easing = EaseOutQuad))
             }
         }
     }
