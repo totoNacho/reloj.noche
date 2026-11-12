@@ -47,6 +47,12 @@ pausas de carga (ver abajo).
 - **Brillo**: brillo bajo SIEMPRE que el reloj está activo (no solo de noche),
   más un slider de brillo nocturno y un slider "Oscurecer más" (capa negra
   encima, para ir por debajo del mínimo del hardware).
+- **Modo ahorro** (Ajustes > Modo ahorro): tras N minutos (por defecto 10) sin
+  tocar la pantalla, el brillo baja al mínimo (`BRIGHTNESS_MIN`) y una capa negra
+  al 50 % apaga el reloj con transición lenta; la pantalla NO se apaga. Un toque o
+  deslizamiento reinicia la cuenta (`activityTick` en `ClockScreen`).
+- **Sensor de luz espaciado**: `registerListener` con muestreo ~3 s y latencia
+  máxima ~6 s (antes `SENSOR_DELAY_NORMAL`), para despertar menos el procesador.
 - **Segundero suave** opcional (OFF por defecto): el barrido a 30 fps calienta,
   así que por defecto el reloj refresca 1 vez/seg (o 1 vez/min sin segundos).
 - **Horario**: franja "desde/hasta" (soporta cruzar medianoche) + días de la
