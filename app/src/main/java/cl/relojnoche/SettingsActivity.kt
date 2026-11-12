@@ -389,6 +389,30 @@ private fun SettingsScreen(
                 }
             }
 
+            Section("Modo ahorro") {
+                SwitchRow(
+                    "Bajar el brillo si no lo toco",
+                    "Pasado un tiempo sin tocar la pantalla, el brillo baja al mínimo y el reloj se ve más apagado. Un toque lo devuelve a la normalidad",
+                    s.saverEnabled,
+                ) { v -> set { it.copy(saverEnabled = v) } }
+                if (s.saverEnabled) {
+                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                        Text(
+                            "Entrar al modo ahorro después de: ${s.saverAfterMin} min",
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Slider(
+                            value = s.saverAfterMin.toFloat(),
+                            onValueChange = { v -> set { it.copy(saverAfterMin = v.roundToInt()) } },
+                            valueRange = SAVER_MIN_MINUTES.toFloat()..SAVER_MAX_MINUTES.toFloat(),
+                            steps = SAVER_MAX_MINUTES - SAVER_MIN_MINUTES - 1,
+                        )
+                    }
+                }
+                Hint("La pantalla sigue encendida; solo se atenúa. Así gasta menos y calienta menos.")
+            }
+
             Section("Modo noche") {
                 Column(Modifier.selectableGroup()) {
                     NightMode.entries.forEach { mode ->

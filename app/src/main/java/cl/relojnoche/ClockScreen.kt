@@ -2,6 +2,7 @@ package cl.relojnoche
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -83,7 +84,19 @@ fun ClockScreen(
     }
     // Brillo bajo SIEMPRE que el reloj esté activo (no solo en modo noche);
     // en noche baja aún más. Esto evita el calentamiento por pantalla a tope.
-    val brightness = settings.effectiveBrightness(night)
+    // Modo ahorro: tras N minutos sin tocar la pantalla, el brillo baja al
+    // mínimo y el reloj se muestra más apagado (la pantalla sigue encendida).
+    // Cualquier toque o deslizamiento sube activityTick, que reinicia la cuenta.
+    var activityTick by remember { mutableIntStateOf(0) }
+    var saver by remember { mutableStateOf(false) }
+    LaunchedEffect(activityTick, settings.saverEnabled, settings.saverAfterMin) {
+        saver = false
+        if (!settings.saverEnabled) return@LaunchedEffect
+        delay(settings.saverAfterMin * 60_000L)
+        saver = true
+    }
+
+    val brightness = if (saver) BRIGHTNESS_MIN else settings.effectiveBrightness(night)
     val brightnessCallback by rememberUpdatedState(onBrightness)
     LaunchedEffect(brightness) { brightnessCallback(brightness) }
 
@@ -115,6 +128,7 @@ fun ClockScreen(
         snapshotFlow { pagerState.currentPage }.drop(1).collect {
             overlayVisible = true
             overlayPing++
+            activityTick++
         }
     }
 
@@ -128,6 +142,7 @@ fun ClockScreen(
                     .fillMaxSize()
                     .pointerInput(Unit) {
                         detectTapGestures(
+                            onPress = { activityTick++ },
                             onTap = {
                                 overlayVisible = !overlayVisible
                                 overlayPing++
@@ -147,6 +162,21 @@ fun ClockScreen(
                 Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = settings.dimLevel)),
+            )
+        }
+
+        // Modo ahorro: el reloj se apaga poco a poco (transición lenta) y vuelve
+        // a la normalidad al tocar. Va debajo de los controles, que no se oscurecen.
+        val saverDim by animateFloatAsState(
+            targetValue = if (saver) 0.5f else 0f,
+            animationSpec = tween(2500),
+            label = "saverDim",
+        )
+        if (saverDim > 0f) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = saverDim)),
             )
         }
 

@@ -49,6 +49,14 @@ data class ClockSettings(
      */
     val dimLevel: Float = 0.0f,
     /**
+     * Modo ahorro: tras unos minutos sin tocar la pantalla, el brillo baja al
+     * mínimo y el reloj se muestra más apagado (sin apagar la pantalla). Un
+     * toque lo devuelve a la normalidad.
+     */
+    val saverEnabled: Boolean = true,
+    /** Minutos sin tocar la pantalla antes de entrar al modo ahorro. */
+    val saverAfterMin: Int = 10,
+    /**
      * Segundero suave (~30 fps). Apagado por defecto: el barrido continuo
      * mantiene la pantalla redibujándose y es la causa principal de que el
      * teléfono se caliente. Apagado, el segundero avanza de a 1 segundo.
@@ -116,6 +124,8 @@ const val NIGHT_BRIGHTNESS_MAX = 0.30f
 const val BRIGHTNESS_MIN = 0.01f
 const val BRIGHTNESS_MAX = 1.0f
 const val DIM_MAX = 0.85f
+const val SAVER_MIN_MINUTES = 1
+const val SAVER_MAX_MINUTES = 60
 
 /**
  * Brillo efectivo (0..1) a aplicar a la ventana según el estado actual.
@@ -142,6 +152,8 @@ object SettingsStore {
     private const val K_BRIGHTNESS = "brightness"
     private const val K_NIGHT_BRIGHTNESS = "night_brightness"
     private const val K_DIM = "dim_level"
+    private const val K_SAVER = "saver_enabled"
+    private const val K_SAVER_MIN = "saver_after_min"
     private const val K_SMOOTH_SECONDS = "smooth_seconds"
     private const val K_BURN_IN = "burn_in_shift"
     private const val K_ONLY_WIRELESS = "only_wireless"
@@ -180,6 +192,9 @@ object SettingsStore {
             nightBrightness = p.getFloat(K_NIGHT_BRIGHTNESS, d.nightBrightness)
                 .coerceIn(NIGHT_BRIGHTNESS_MIN, NIGHT_BRIGHTNESS_MAX),
             dimLevel = p.getFloat(K_DIM, d.dimLevel).coerceIn(0f, DIM_MAX),
+            saverEnabled = p.getBoolean(K_SAVER, d.saverEnabled),
+            saverAfterMin = p.getInt(K_SAVER_MIN, d.saverAfterMin)
+                .coerceIn(SAVER_MIN_MINUTES, SAVER_MAX_MINUTES),
             smoothSeconds = p.getBoolean(K_SMOOTH_SECONDS, d.smoothSeconds),
             burnInShift = p.getBoolean(K_BURN_IN, d.burnInShift),
             onlyWireless = p.getBoolean(K_ONLY_WIRELESS, d.onlyWireless),
@@ -211,6 +226,8 @@ object SettingsStore {
             ?.putFloat(K_BRIGHTNESS, s.brightness)
             ?.putFloat(K_NIGHT_BRIGHTNESS, s.nightBrightness)
             ?.putFloat(K_DIM, s.dimLevel)
+            ?.putBoolean(K_SAVER, s.saverEnabled)
+            ?.putInt(K_SAVER_MIN, s.saverAfterMin)
             ?.putBoolean(K_SMOOTH_SECONDS, s.smoothSeconds)
             ?.putBoolean(K_BURN_IN, s.burnInShift)
             ?.putBoolean(K_ONLY_WIRELESS, s.onlyWireless)

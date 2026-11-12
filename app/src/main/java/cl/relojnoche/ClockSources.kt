@@ -179,6 +179,8 @@ fun nextAlarmMillis(context: Context): Long? =
 private const val DARK_ENTER_LUX = 6f   // por debajo: habitación oscura
 private const val DARK_EXIT_LUX = 20f   // por encima: vuelve el color normal
 private const val LIGHT_DEBOUNCE_MS = 2500L
+private const val LIGHT_SAMPLING_US = 3_000_000        // microsegundos entre muestras
+private const val LIGHT_MAX_LATENCY_US = 6_000_000     // máximo que el sistema puede agrupar
 
 /**
  * true = habitación oscura; null = sin sensor de luz (o sin lectura todavía).
@@ -199,7 +201,11 @@ fun rememberRoomIsDark(enabled: Boolean): State<Boolean?> {
                 }
                 override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
             }
-            sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+            // Lectura espaciada: pedimos una muestra cada ~3 s y que el sistema
+            // agrupe las lecturas hasta ~6 s antes de despertarnos. Con
+            // SENSOR_DELAY_NORMAL (~5 por segundo) el procesador se despertaba
+            // sin necesidad; la luz de una pieza casi no cambia.
+            sm.registerListener(listener, sensor, LIGHT_SAMPLING_US, LIGHT_MAX_LATENCY_US)
             awaitClose { sm.unregisterListener(listener) }
         }
         var dark: Boolean? = null
